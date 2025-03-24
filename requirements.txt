@@ -1,0 +1,40 @@
+# Flask and extensions
+Flask
+Flask-Bootstrap5
+Flask-SQLAlchemy
+Flask-Login
+Flask-WTF
+Flask-Migrate
+python-dotenv
+
+# Web3 and blockchain
+web3
+eth-account
+eth-typing
+eth-utils
+hexbytes
+
+# Crypto and security
+pycryptodome
+cryptography
+
+# Data handling
+pandas
+numpy
+SQLAlchemy
+
+# API clients
+requests
+python-telegram-bot
+
+# AI/ML (optional)
+tensorflow
+scikit-learn
+# Testing
+pytest
+pytest-flask
+
+# Utilities
+Werkzeug
+Jinja2
+gunicorn

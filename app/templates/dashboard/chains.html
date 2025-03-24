@@ -1,0 +1,807 @@
+{% extends "base.html" %}
+
+{% block title %}Chains - PME-X{% endblock %}
+
+{% block header %}Chain Management{% endblock %}
+
+{% block content %}
+<!-- Chain Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Total Chains</h6>
+                        <h3 class="mb-0">{{ chains|length }}</h3>
+                    </div>
+                    <i class="fas fa-link fa-2x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-success text-white h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Active</h6>
+                        <h3 class="mb-0">{{ chains|selectattr('status', 'equalto', 'active')|list|length }}</h3>
+                    </div>
+                    <i class="fas fa-check-circle fa-2x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-warning text-white h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Congested</h6>
+                        <h3 class="mb-0">{{ chains|selectattr('status', 'equalto', 'congested')|list|length }}</h3>
+                    </div>
+                    <i class="fas fa-exclamation-triangle fa-2x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-secondary text-white h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Inactive</h6>
+                        <h3 class="mb-0">{{ chains|selectattr('status', 'equalto', 'inactive')|list|length }}</h3>
+                    </div>
+                    <i class="fas fa-power-off fa-2x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Chain List -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Chain List</h5>
+        <div>
+            <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#refreshChainModal">
+                <i class="fas fa-sync"></i> Refresh Gas Prices
+            </button>
+            <button class="btn btn-sm btn-secondary" data-bs-toggle="modal" data-bs-target="#addChainModal">
+                <i class="fas fa-plus"></i> Add Chain
+            </button>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover" id="chain-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Chain ID</th>
+                        <th>Currency</th>
+                        <th>Gas Price (GWEI)</th>
+                        <th>Confirm Time</th>
+                        <th>Status</th>
+                        <th>Tatum Tier</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for chain in chains %}
+                    <tr>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <img src="{{ url_for('static', filename='img/chains/' ~ chain.name ~ '.png') }}" 
+                                     onerror="this.src='{{ url_for('static', filename='img/chains/default.png') }}';"
+                                     alt="{{ chain.name }}" class="me-2" width="24" height="24" />
+                                <span>{{ chain.name }}</span>
+                            </div>
+                        </td>
+                        <td>{{ chain.chain_id }}</td>
+                        <td>{{ chain.currency_symbol }}</td>
+                        <td>{{ chain.avg_gas_price }}</td>
+                        <td>{{ chain.avg_confirmation_time }} sec</td>
+                        <td>
+                            {% if chain.status == 'active' %}
+                            <span class="badge bg-success">Active</span>
+                            {% elif chain.status == 'congested' %}
+                            <span class="badge bg-warning">Congested</span>
+                            {% else %}
+                            <span class="badge bg-secondary">Inactive</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge {% if chain.tatum_tier == 1 %}bg-info{% elif chain.tatum_tier == 2 %}bg-primary{% else %}bg-secondary{% endif %}">
+                                Tier {{ chain.tatum_tier }}
+                            </span>
+                        </td>
+                        <td>
+                            <div class="btn-group">
+                                <button class="btn btn-sm btn-outline-primary chain-details-btn" data-chain-id="{{ chain.id }}">
+                                    <i class="fas fa-info-circle"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-warning chain-status-btn" data-chain-id="{{ chain.id }}">
+                                    <i class="fas fa-exchange-alt"></i>
+                                </button>
+                                <a href="{{ url_for('dashboard.trade_logs') }}?chain={{ chain.name }}" class="btn btn-sm btn-outline-secondary">
+                                    <i class="fas fa-history"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Chain Details Modal -->
+<div class="modal fade" id="chainDetailsModal" tabindex="-1" aria-labelledby="chainDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="chainDetailsModalLabel">Chain Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row" id="chain-details-content">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">Name</label>
+                            <input type="text" class="form-control" id="detail-name" readonly>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Chain ID</label>
+                            <input type="text" class="form-control" id="detail-chain-id" readonly>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Currency Symbol</label>
+                            <input type="text" class="form-control" id="detail-currency" readonly>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Tatum Network</label>
+                            <input type="text" class="form-control" id="detail-tatum-network" readonly>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">RPC URL</label>
+                            <input type="text" class="form-control" id="detail-rpc-url" readonly>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Explorer URL</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="detail-explorer-url" readonly>
+                                <a class="btn btn-outline-secondary" id="explorer-link" href="#" target="_blank">
+                                    <i class="fas fa-external-link-alt"></i>
+                                </a>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Last Updated</label>
+                            <input type="text" class="form-control" id="detail-last-updated" readonly>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Status</label>
+                            <input type="text" class="form-control" id="detail-status" readonly>
+                        </div>
+                    </div>
+                </div>
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <h6>Gas History</h6>
+                        <canvas id="gas-chart" height="200"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="edit-chain-btn">Edit</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Change Status Modal -->
+<div class="modal fade" id="changeStatusModal" tabindex="-1" aria-labelledby="changeStatusModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="changeStatusModalLabel">Change Chain Status</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="change-status-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token else '' }}">
+                    <input type="hidden" id="status-chain-id" name="chain_id">
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Chain</label>
+                        <input type="text" class="form-control" id="status-chain-name" readonly>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Status</label>
+                        <select class="form-select" id="status-select" name="status" required>
+                            <option value="active">Active</option>
+                            <option value="inactive">Inactive</option>
+                            <option value="congested">Congested</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Reason (Optional)</label>
+                        <textarea class="form-control" id="status-reason" name="reason" rows="3"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="save-status-btn">Save Changes</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Refresh Gas Prices Modal -->
+<div class="modal fade" id="refreshChainModal" tabindex="-1" aria-labelledby="refreshChainModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="refreshChainModalLabel">Refresh Gas Prices</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>This will refresh gas prices and status information for all chains.</p>
+                <form id="refresh-chains-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token else '' }}">
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Select Chains</label>
+                        <select class="form-select" id="refresh-chains-select" name="chains" multiple size="8">
+                            <option value="all" selected>All Chains</option>
+                            {% for chain in chains %}
+                            <option value="{{ chain.name }}">{{ chain.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">Hold Ctrl/Cmd to select multiple chains</div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="refresh-chains-btn">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Chain Modal -->
+<div class="modal fade" id="addChainModal" tabindex="-1" aria-labelledby="addChainModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addChainModalLabel">Add New Chain</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="add-chain-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token else '' }}">
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Name</label>
+                                <input type="text" class="form-control" id="add-name" name="name" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Chain ID</label>
+                                <input type="number" class="form-control" id="add-chain-id" name="chain_id" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Currency Symbol</label>
+                                <input type="text" class="form-control" id="add-currency" name="currency_symbol" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Tatum Network</label>
+                                <input type="text" class="form-control" id="add-tatum-network" name="tatum_network" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">RPC URL</label>
+                                <input type="text" class="form-control" id="add-rpc-url" name="rpc_url" required>
+                                <div class="form-text">Example: https://chainname.tatum.io/</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Explorer URL</label>
+                                <input type="text" class="form-control" id="add-explorer-url" name="explorer_url">
+                                <div class="form-text">Example: https://chainname.etherscan.io</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Tatum Tier</label>
+                                <select class="form-select" id="add-tatum-tier" name="tatum_tier" required>
+                                    <option value="1">Tier 1</option>
+                                    <option value="2">Tier 2</option>
+                                    <option value="3">Tier 3</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Status</label>
+                                <select class="form-select" id="add-status" name="status" required>
+                                    <option value="active">Active</option>
+                                    <option value="inactive">Inactive</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="add-chain-btn">Add Chain</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Chain details modal
+    const chainDetailsButtons = document.querySelectorAll('.chain-details-btn');
+    const chainDetailsModal = document.getElementById('chainDetailsModal');
+    const detailsModal = new bootstrap.Modal(chainDetailsModal);
+    let gasChart = null;
+    
+    chainDetailsButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const chainId = this.getAttribute('data-chain-id');
+            fetchChainDetails(chainId);
+        });
+    });
+    
+    function fetchChainDetails(chainId) {
+        // In a real implementation, this would be an API call
+        // For demo, we'll find the chain in the table
+        const chainRow = document.querySelector(`[data-chain-id="${chainId}"]`).closest('tr');
+        const cells = chainRow.querySelectorAll('td');
+        
+        document.getElementById('detail-name').value = cells[0].querySelector('span').textContent;
+        document.getElementById('detail-chain-id').value = cells[1].textContent;
+        document.getElementById('detail-currency').value = cells[2].textContent;
+        document.getElementById('detail-rpc-url').value = `https://${cells[0].querySelector('span').textContent}.tatum.io/`;
+        document.getElementById('detail-explorer-url').value = `https://${cells[0].querySelector('span').textContent}scan.io`;
+        document.getElementById('explorer-link').href = `https://${cells[0].querySelector('span').textContent}scan.io`;
+        document.getElementById('detail-tatum-network').value = `${cells[0].querySelector('span').textContent}-mainnet`;
+        document.getElementById('detail-status').value = cells[5].querySelector('span').textContent;
+        document.getElementById('detail-last-updated').value = new Date().toLocaleString();
+        
+        // Initialize or update gas price chart
+        updateGasChart(cells[0].querySelector('span').textContent);
+        
+        detailsModal.show();
+    }
+    
+    function updateGasChart(chainName) {
+        const ctx = document.getElementById('gas-chart').getContext('2d');
+        
+        // Destroy previous chart if exists
+        if (gasChart) {
+            gasChart.destroy();
+        }
+        
+        // Generate mock data for demonstration
+        const dates = [];
+        const gasPrices = [];
+        const now = new Date();
+        
+        for (let i = 30; i >= 0; i--) {
+            const date = new Date(now);
+            date.setDate(date.getDate() - i);
+            dates.push(date.toLocaleDateString());
+            
+            // Generate semi-random gas price
+            let basePrice = 0;
+            switch (chainName) {
+                case 'ethereum':
+                    basePrice = 50;
+                    break;
+                case 'polygon':
+                    basePrice = 80;
+                    break;
+                case 'bsc':
+                    basePrice = 5;
+                    break;
+                default:
+                    basePrice = 20;
+            }
+            
+            const randomFactor = Math.random() * 0.5 + 0.75; // Random between 0.75 and 1.25
+            gasPrices.push(Math.round(basePrice * randomFactor));
+        }
+        
+        // Create chart
+        gasChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: dates,
+                datasets: [{
+                    label: 'Gas Price (GWEI)',
+                    data: gasPrices,
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Gas Price (GWEI)'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Date'
+                        }
+                    }
+                },
+                plugins: {
+                    tooltip: {
+                        intersect: false,
+                        mode: 'index'
+                    }
+                }
+            }
+        });
+    }
+    
+    // Change status modal
+    const chainStatusButtons = document.querySelectorAll('.chain-status-btn');
+    const changeStatusModal = document.getElementById('changeStatusModal');
+    const statusModal = new bootstrap.Modal(changeStatusModal);
+    
+    chainStatusButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const chainId = this.getAttribute('data-chain-id');
+            const chainRow = document.querySelector(`[data-chain-id="${chainId}"]`).closest('tr');
+            const chainName = chainRow.querySelector('td:first-child span').textContent;
+            const currentStatus = chainRow.querySelector('td:nth-child(6) span').textContent.toLowerCase();
+            
+            document.getElementById('status-chain-id').value = chainId;
+            document.getElementById('status-chain-name').value = chainName;
+            document.getElementById('status-select').value = currentStatus === 'active' ? 'active' : 
+                                                           currentStatus === 'congested' ? 'congested' : 'inactive';
+            
+            statusModal.show();
+        });
+    });
+    
+    // Save status changes
+    document.getElementById('save-status-btn').addEventListener('click', function() {
+        const form = document.getElementById('change-status-form');
+        const chainId = document.getElementById('status-chain-id').value;
+        const newStatus = document.getElementById('status-select').value;
+        
+        // In a real implementation, this would be an API call
+        // For demo, we'll update the table
+        const chainRow = document.querySelector(`[data-chain-id="${chainId}"]`).closest('tr');
+        const statusCell = chainRow.querySelector('td:nth-child(6)');
+        
+        let badgeClass = '';
+        switch (newStatus) {
+            case 'active':
+                badgeClass = 'bg-success';
+                break;
+            case 'congested':
+                badgeClass = 'bg-warning';
+                break;
+            case 'inactive':
+                badgeClass = 'bg-secondary';
+                break;
+        }
+        
+        statusCell.innerHTML = `<span class="badge ${badgeClass}">${newStatus.charAt(0).toUpperCase() + newStatus.slice(1)}</span>`;
+        
+        // Update status counts
+        const activeCount = document.querySelectorAll('.badge.bg-success').length;
+        const congestedCount = document.querySelectorAll('.badge.bg-warning').length;
+        const inactiveCount = document.querySelectorAll('.badge.bg-secondary').length;
+        
+        document.querySelector('.card.bg-success .card-body h3').textContent = activeCount;
+        document.querySelector('.card.bg-warning .card-body h3').textContent = congestedCount;
+        document.querySelector('.card.bg-secondary .card-body h3').textContent = inactiveCount;
+        
+        statusModal.hide();
+    });
+    
+    // Refresh chains button
+    document.getElementById('refresh-chains-btn').addEventListener('click', function() {
+        const button = this;
+        const selectedOptions = Array.from(document.getElementById('refresh-chains-select').selectedOptions);
+        const selectedChains = selectedOptions.map(option => option.value);
+        
+        // Show loading state
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Refreshing...';
+        button.disabled = true;
+        
+        // Simulate API call with timeout
+        setTimeout(() => {
+            // In a real implementation, this would be an API call
+            
+            // Update random gas prices for demonstration
+            document.querySelectorAll('#chain-table tbody tr').forEach(row => {
+                const chainName = row.querySelector('td:first-child span').textContent;
+                
+                // Only update selected chains
+                if (selectedChains.includes('all') || selectedChains.includes(chainName)) {
+                    const gasCell = row.querySelector('td:nth-child(4)');
+                    const oldGas = parseFloat(gasCell.textContent);
+                    
+                    // Generate new gas price with some variation
+                    const variation = (Math.random() - 0.5) * 0.2; // -10% to +10%
+                    const newGas = Math.max(1, oldGas * (1 + variation));
+                    
+                    gasCell.textContent = newGas.toFixed(1);
+                    
+                    // Randomly update status
+                    if (Math.random() < 0.1) { // 10% chance
+                        const statusCell = row.querySelector('td:nth-child(6)');
+                        const currentStatus = statusCell.querySelector('span').textContent.toLowerCase();
+                        
+                        let newStatus, badgeClass;
+                        if (currentStatus === 'active' && newGas > oldGas * 1.1) {
+                            newStatus = 'Congested';
+                            badgeClass = 'bg-warning';
+                        } else if (currentStatus === 'congested' && newGas < oldGas * 0.9) {
+                            newStatus = 'Active';
+                            badgeClass = 'bg-success';
+                        } else {
+                            // No change
+                            return;
+                        }
+                        
+                        statusCell.innerHTML = `<span class="badge ${badgeClass}">${newStatus}</span>`;
+                    }
+                }
+            });
+            
+            // Update status counts
+            const activeCount = document.querySelectorAll('.badge.bg-success').length;
+            const congestedCount = document.querySelectorAll('.badge.bg-warning').length;
+            const inactiveCount = document.querySelectorAll('.badge.bg-secondary').length;
+            
+            document.querySelector('.card.bg-success .card-body h3').textContent = activeCount;
+            document.querySelector('.card.bg-warning .card-body h3').textContent = congestedCount;
+            document.querySelector('.card.bg-secondary .card-body h3').textContent = inactiveCount;
+            
+            // Reset button
+            button.innerHTML = '<i class="fas fa-sync-alt"></i> Refresh';
+            button.disabled = false;
+            
+            // Close modal
+            bootstrap.Modal.getInstance(document.getElementById('refreshChainModal')).hide();
+            
+            // Show success notification
+            const notification = document.createElement('div');
+            notification.className = 'alert alert-success alert-dismissible fade show position-fixed top-0 end-0 m-3';
+            notification.innerHTML = `
+                <strong>Success!</strong> Gas prices updated for ${selectedChains.includes('all') ? 'all chains' : selectedChains.length + ' chains'}.
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            `;
+            document.body.appendChild(notification);
+            
+            // Auto-dismiss after 3 seconds
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }, 1500);
+    });
+    
+    // Add chain button
+    document.getElementById('add-chain-btn').addEventListener('click', function() {
+        const form = document.getElementById('add-chain-form');
+        
+        // Simple validation
+        const requiredFields = form.querySelectorAll('[required]');
+        let isValid = true;
+        
+        requiredFields.forEach(field => {
+            if (!field.value) {
+                field.classList.add('is-invalid');
+                isValid = false;
+            } else {
+                field.classList.remove('is-invalid');
+            }
+        });
+        
+        if (!isValid) {
+            return;
+        }
+        
+        // In a real implementation, this would be an API call
+        // For demo, we'll add to the table
+        const chainName = document.getElementById('add-name').value;
+        const chainId = document.getElementById('add-chain-id').value;
+        const currency = document.getElementById('add-currency').value;
+        const status = document.getElementById('add-status').value;
+        const tatumTier = document.getElementById('add-tatum-tier').value;
+        
+        // Create new row
+        const newRow = document.createElement('tr');
+        
+        let badgeClass = '';
+        switch (status) {
+            case 'active':
+                badgeClass = 'bg-success';
+                break;
+            case 'congested':
+                badgeClass = 'bg-warning';
+                break;
+            case 'inactive':
+                badgeClass = 'bg-secondary';
+                break;
+        }
+        
+        let tierBadgeClass = '';
+        switch (tatumTier) {
+            case '1':
+                tierBadgeClass = 'bg-info';
+                break;
+            case '2':
+                tierBadgeClass = 'bg-primary';
+                break;
+            case '3':
+                tierBadgeClass = 'bg-secondary';
+                break;
+        }
+        
+        newRow.innerHTML = `
+            <td>
+                <div class="d-flex align-items-center">
+                    <img src="{{ url_for('static', filename='img/chains/default.png') }}"
+                         alt="${chainName}" class="me-2" width="24" height="24" />
+                    <span>${chainName}</span>
+                </div>
+            </td>
+            <td>${chainId}</td>
+            <td>${currency}</td>
+            <td>${Math.floor(Math.random() * 50) + 5}</td>
+            <td>${Math.floor(Math.random() * 10) + 1} sec</td>
+            <td>
+                <span class="badge ${badgeClass}">${status.charAt(0).toUpperCase() + status.slice(1)}</span>
+            </td>
+            <td>
+                <span class="badge ${tierBadgeClass}">Tier ${tatumTier}</span>
+            </td>
+            <td>
+                <div class="btn-group">
+                    <button class="btn btn-sm btn-outline-primary chain-details-btn" data-chain-id="new-${chainName}">
+                        <i class="fas fa-info-circle"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-warning chain-status-btn" data-chain-id="new-${chainName}">
+                        <i class="fas fa-exchange-alt"></i>
+                    </button>
+                    <a href="{{ url_for('dashboard.trade_logs') }}?chain=${chainName}" class="btn btn-sm btn-outline-secondary">
+                        <i class="fas fa-history"></i>
+                    </a>
+                </div>
+            </td>
+        `;
+        
+        document.querySelector('#chain-table tbody').appendChild(newRow);
+        
+        // Update chain count
+        const totalChains = document.querySelectorAll('#chain-table tbody tr').length;
+        document.querySelector('.card.bg-primary .card-body h3').textContent = totalChains;
+        
+        // Update active/inactive counts if needed
+        if (status === 'active') {
+            const activeCount = parseInt(document.querySelector('.card.bg-success .card-body h3').textContent) + 1;
+            document.querySelector('.card.bg-success .card-body h3').textContent = activeCount;
+        } else if (status === 'inactive') {
+            const inactiveCount = parseInt(document.querySelector('.card.bg-secondary .card-body h3').textContent) + 1;
+            document.querySelector('.card.bg-secondary .card-body h3').textContent = inactiveCount;
+        }
+        
+        // Close modal and reset form
+        bootstrap.Modal.getInstance(document.getElementById('addChainModal')).hide();
+        form.reset();
+        
+        // Add event listeners to new buttons
+        newRow.querySelector('.chain-details-btn').addEventListener('click', function() {
+            const chainId = this.getAttribute('data-chain-id');
+            fetchChainDetails(chainId);
+        });
+        
+        newRow.querySelector('.chain-status-btn').addEventListener('click', function() {
+            const chainId = this.getAttribute('data-chain-id');
+            const chainRow = this.closest('tr');
+            const chainName = chainRow.querySelector('td:first-child span').textContent;
+            const currentStatus = chainRow.querySelector('td:nth-child(6) span').textContent.toLowerCase();
+            
+            document.getElementById('status-chain-id').value = chainId;
+            document.getElementById('status-chain-name').value = chainName;
+            document.getElementById('status-select').value = currentStatus === 'active' ? 'active' : 
+                                                          currentStatus === 'congested' ? 'congested' : 'inactive';
+            
+            statusModal.show();
+        });
+        
+        // Show success notification
+        const notification = document.createElement('div');
+        notification.className = 'alert alert-success alert-dismissible fade show position-fixed top-0 end-0 m-3';
+        notification.innerHTML = `
+            <strong>Success!</strong> Chain ${chainName} has been added.
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        `;
+        document.body.appendChild(notification);
+        
+        // Auto-dismiss after 3 seconds
+        setTimeout(() => {
+            notification.remove();
+        }, 3000);
+    });
+    
+    // Edit chain functionality
+    document.getElementById('edit-chain-btn').addEventListener('click', function() {
+        alert('Edit functionality would be implemented here in the full application.');
+    });
+    
+    // Make the chain table sortable
+    document.querySelectorAll('#chain-table th').forEach(header => {
+        header.style.cursor = 'pointer';
+        header.addEventListener('click', function() {
+            const table = document.getElementById('chain-table');
+            const tbody = table.querySelector('tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            const index = Array.from(header.parentNode.children).indexOf(header);
+            
+            const direction = header.classList.contains('asc') ? -1 : 1;
+            
+            // Update header classes
+            document.querySelectorAll('#chain-table th').forEach(th => {
+                th.classList.remove('asc', 'desc');
+            });
+            
+            header.classList.add(direction === 1 ? 'asc' : 'desc');
+            
+            // Sort rows
+            rows.sort((a, b) => {
+                const aValue = a.querySelectorAll('td')[index].textContent.trim();
+                const bValue = b.querySelectorAll('td')[index].textContent.trim();
+                
+                if (!isNaN(parseFloat(aValue)) && !isNaN(parseFloat(bValue))) {
+                    return direction * (parseFloat(aValue) - parseFloat(bValue));
+                } else {
+                    return direction * aValue.localeCompare(bValue);
+                }
+            });
+            
+            // Remove existing rows
+            rows.forEach(row => tbody.removeChild(row));
+            
+            // Add sorted rows
+            rows.forEach(row => tbody.appendChild(row));
+        });
+    });
+});
+</script>
+{% endblock %}

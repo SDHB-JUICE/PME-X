@@ -1,0 +1,60 @@
+{# Form helpers for Flask-WTF #}
+
+{% macro render_field(field) %}
+  <div class="mb-3">
+    {{ field.label(class="form-label") }}
+    {% if field.errors %}
+      {{ field(class="form-control is-invalid") }}
+      <div class="invalid-feedback">
+        {% for error in field.errors %}
+          {{ error }}
+        {% endfor %}
+      </div>
+    {% else %}
+      {{ field(class="form-control") }}
+    {% endif %}
+    
+    {% if field.description %}
+      <div class="form-text">{{ field.description }}</div>
+    {% endif %}
+  </div>
+{% endmacro %}
+
+{% macro render_checkbox(field) %}
+  <div class="mb-3 form-check">
+    {% if field.errors %}
+      {{ field(class="form-check-input is-invalid") }}
+      <div class="invalid-feedback">
+        {% for error in field.errors %}
+          {{ error }}
+        {% endfor %}
+      </div>
+    {% else %}
+      {{ field(class="form-check-input") }}
+    {% endif %}
+    {{ field.label(class="form-check-label") }}
+    
+    {% if field.description %}
+      <div class="form-text">{{ field.description }}</div>
+    {% endif %}
+  </div>
+{% endmacro %}
+
+{% macro render_hidden_field(field) %}
+  {{ field() }}
+{% endmacro %}
+
+{% macro render_submit_button(label="Submit") %}
+  <div class="d-grid">
+    <button type="submit" class="btn btn-primary">{{ label }}</button>
+  </div>
+{% endmacro %}
+
+{% macro render_form_start(form, action=None, method="POST", enctype=None) %}
+  <form method="{{ method }}" {% if action %}action="{{ action }}"{% endif %} {% if enctype %}enctype="{{ enctype }}"{% endif %}>
+    {{ form.csrf_token }}
+{% endmacro %}
+
+{% macro render_form_end() %}
+  </form>
+{% endmacro %}

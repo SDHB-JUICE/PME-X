@@ -1,0 +1,384 @@
+{% extends "base.html" %}
+
+{% block title %}Flash Loan - PME-X{% endblock %}
+
+{% block header %}Flash Loan Arbitrage{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- Strategy Form Card -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title">Execute Flash Loan</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('strategies.execute_flash_loan') }}">
+                    <div class="mb-3">
+                        <label for="chain" class="form-label">Select Chain</label>
+                        <select class="form-select" id="chain" name="chain" required>
+                            <option value="" selected disabled>Choose a chain...</option>
+                            {% for chain in chains %}
+                            <option value="{{ chain.name }}">{{ chain.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="token" class="form-label">Token to Borrow</label>
+                        <select class="form-select" id="token" name="token" required>
+                            <option value="" selected disabled>Choose a token...</option>
+                            <option value="DAI">DAI</option>
+                            <option value="USDC">USDC</option>
+                            <option value="USDT">USDT</option>
+                            <option value="WETH">WETH</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="amount" class="form-label">Amount to Borrow</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="amount" name="amount" min="1000" step="1000" required>
+                            <span class="input-group-text" id="token-symbol">Tokens</span>
+                        </div>
+                        <div class="form-text">Minimum amount: 1,000 tokens</div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="dex1" class="form-label">DEX to Buy From</label>
+                            <select class="form-select" id="dex1" name="dex1" required>
+                                <option value="" selected disabled>Choose a DEX...</option>
+                                <option value="uniswap">Uniswap</option>
+                                <option value="sushiswap">Sushiswap</option>
+                                <option value="curve">Curve</option>
+                                <option value="balancer">Balancer</option>
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label for="dex2" class="form-label">DEX to Sell To</label>
+                            <select class="form-select" id="dex2" name="dex2" required>
+                                <option value="" selected disabled>Choose a DEX...</option>
+                                <option value="uniswap">Uniswap</option>
+                                <option value="sushiswap">Sushiswap</option>
+                                <option value="curve">Curve</option>
+                                <option value="balancer">Balancer</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="min_profit" class="form-label">Minimum Profit Threshold (%)</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="min_profit" name="min_profit" min="0.1" step="0.1" value="0.5" required>
+                            <span class="input-group-text">%</span>
+                        </div>
+                        <div class="form-text">Minimum profit required to execute the arbitrage</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="gas_price" class="form-label">Gas Price (GWEI)</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="gas_price" name="gas_price" min="1" step="1" required>
+                            <span class="input-group-text">GWEI</span>
+                        </div>
+                        <div class="form-text">Current Gas: <span id="current-gas">Loading...</span></div>
+                    </div>
+                    
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="auto_reinvest" name="auto_reinvest" checked>
+                        <label class="form-check-label" for="auto_reinvest">Auto-reinvest profits into yield farming</label>
+                    </div>
+                    
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary" id="execute-btn">
+                            <i class="fas fa-bolt me-2"></i> Execute Flash Loan
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Strategy Info Card -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title">Strategy Information</h5>
+            </div>
+            <div class="card-body">
+                <h5>How Flash Loan Arbitrage Works</h5>
+                <p>A flash loan is a type of loan that allows you to borrow assets without collateral, as long as the loan is repaid within a single transaction block.</p>
+                
+                <div class="alert alert-info">
+                    <h6 class="alert-heading">Flash Loan Process:</h6>
+                    <ol>
+                        <li>Borrow tokens from a lending protocol (Aave, dYdX, etc.)</li>
+                        <li>Use the borrowed tokens to buy assets at a lower price on DEX 1</li>
+                        <li>Sell the assets at a higher price on DEX 2</li>
+                        <li>Repay the loan plus fees</li>
+                        <li>Keep the profit</li>
+                    </ol>
+                </div>
+                
+                <h5 class="mt-4">Profit Simulation</h5>
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Amount</th>
+                                <th>Fee</th>
+                                <th>Price Diff</th>
+                                <th>Profit</th>
+                                <th>ROI</th>
+                            </tr>
+                        </thead>
+                        <tbody id="profit-simulation">
+                            <tr>
+                                <td>$100,000</td>
+                                <td>$90</td>
+                                <td>0.5%</td>
+                                <td>$410</td>
+                                <td>456%</td>
+                            </tr>
+                            <tr>
+                                <td>$500,000</td>
+                                <td>$450</td>
+                                <td>0.5%</td>
+                                <td>$2,050</td>
+                                <td>456%</td>
+                            </tr>
+                            <tr>
+                                <td>$1,000,000</td>
+                                <td>$900</td>
+                                <td>0.5%</td>
+                                <td>$4,100</td>
+                                <td>456%</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <h5 class="mt-4">Supported Protocols</h5>
+                <div class="row">
+                    <div class="col-6">
+                        <h6>Lending Protocols:</h6>
+                        <ul>
+                            <li>Aave</li>
+                            <li>dYdX</li>
+                            <li>Balancer</li>
+                        </ul>
+                    </div>
+                    <div class="col-6">
+                        <h6>DEXes:</h6>
+                        <ul>
+                            <li>Uniswap</li>
+                            <li>Sushiswap</li>
+                            <li>Curve</li>
+                            <li>Balancer</li>
+                            <li>PancakeSwap (BSC)</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Trades Card -->
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">Recent Flash Loan Trades</h5>
+                <a href="{{ url_for('dashboard.trade_logs') }}?strategy=flash_loan" class="btn btn-sm btn-outline-primary">View All</a>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Chain</th>
+                                <th>Token</th>
+                                <th>Amount</th>
+                                <th>Profit</th>
+                                <th>Gas Cost</th>
+                                <th>Net Profit</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for trade in recent_trades %}
+                            <tr>
+                                <td>{{ trade.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                <td>{{ trade.chain }}</td>
+                                <td>{{ trade.details.token if trade.details and trade.details.token else 'Unknown' }}</td>
+                                <td>${{ trade.amount | round(2) }}</td>
+                                <td>${{ trade.profit | round(2) }}</td>
+                                <td>${{ trade.gas_cost | round(2) }}</td>
+                                <td class="{% if trade.net_profit > 0 %}text-success{% else %}text-danger{% endif %}">
+                                    ${{ trade.net_profit | round(2) }}
+                                </td>
+                                <td>
+                                    {% if trade.status == 'completed' %}
+                                    <span class="badge bg-success">Completed</span>
+                                    {% elif trade.status == 'pending' %}
+                                    <span class="badge bg-warning">Pending</span>
+                                    {% else %}
+                                    <span class="badge bg-danger">Failed</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Update token symbol when token is selected
+        const tokenSelect = document.getElementById('token');
+        const tokenSymbol = document.getElementById('token-symbol');
+        
+        tokenSelect.addEventListener('change', function() {
+            tokenSymbol.textContent = this.value;
+        });
+        
+        // Prevent selecting same DEX for buy and sell
+        const dex1Select = document.getElementById('dex1');
+        const dex2Select = document.getElementById('dex2');
+        
+        dex1Select.addEventListener('change', function() {
+            const selectedDex = this.value;
+            
+            // Reset dex2 if it's the same as dex1
+            if (dex2Select.value === selectedDex) {
+                dex2Select.value = '';
+            }
+            
+            // Disable the selected option in dex2
+            Array.from(dex2Select.options).forEach(option => {
+                if (option.value === selectedDex) {
+                    option.disabled = true;
+                } else {
+                    option.disabled = false;
+                }
+            });
+        });
+        
+        dex2Select.addEventListener('change', function() {
+            const selectedDex = this.value;
+            
+            // Reset dex1 if it's the same as dex2
+            if (dex1Select.value === selectedDex) {
+                dex1Select.value = '';
+            }
+            
+            // Disable the selected option in dex1
+            Array.from(dex1Select.options).forEach(option => {
+                if (option.value === selectedDex) {
+                    option.disabled = true;
+                } else {
+                    option.disabled = false;
+                }
+            });
+        });
+        
+        // Fetch current gas price
+        fetch('https://api.etherscan.io/api?module=gastracker&action=gasoracle')
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === '1') {
+                    const gasLow = data.result.SafeGasPrice;
+                    const gasAvg = data.result.ProposeGasPrice;
+                    const gasHigh = data.result.FastGasPrice;
+                    
+                    document.getElementById('current-gas').innerHTML = `
+                        <span class="text-success">Low: ${gasLow}</span> |
+                        <span class="text-warning">Average: ${gasAvg}</span> |
+                        <span class="text-danger">High: ${gasHigh}</span> GWEI
+                    `;
+                    
+                    // Set default gas price to average
+                    document.getElementById('gas_price').value = gasAvg;
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching gas price:', error);
+                document.getElementById('current-gas').textContent = 'Error fetching gas price';
+            });
+        
+        // Simulate profits based on input amount
+        const amountInput = document.getElementById('amount');
+        
+        // Update profit simulation when amount changes
+        amountInput.addEventListener('input', function() {
+            const amount = parseFloat(this.value) || 0;
+            updateProfitSimulation(amount);
+        });
+        
+        function updateProfitSimulation(amount) {
+            // Calculate profits for different price differences
+            const priceDiffs = [0.3, 0.5, 0.8];
+            const fee = amount * 0.0009; // 0.09% flash loan fee
+            
+            const simTableBody = document.getElementById('profit-simulation');
+            simTableBody.innerHTML = '';
+            
+            priceDiffs.forEach(diff => {
+                const profit = amount * (diff / 100) - fee;
+                const roi = (profit / fee) * 100;
+                
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>$${amount.toLocaleString()}</td>
+                    <td>$${fee.toFixed(2)}</td>
+                    <td>${diff.toFixed(1)}%</td>
+                    <td>${profit > 0 ? `<span class="text-success">$${profit.toFixed(2)}</span>` : `<span class="text-danger">$${profit.toFixed(2)}</span>`}</td>
+                    <td>${roi.toFixed(1)}%</td>
+                `;
+                
+                simTableBody.appendChild(row);
+            });
+        }
+        
+        // Initial simulation with default value
+        const initialAmount = parseFloat(amountInput.value) || 100000;
+        updateProfitSimulation(initialAmount);
+        
+        // Form validation before submit
+        const form = document.querySelector('form');
+        form.addEventListener('submit', function(event) {
+            const dex1 = dex1Select.value;
+            const dex2 = dex2Select.value;
+            
+            if (dex1 === dex2) {
+                event.preventDefault();
+                alert('You must select different DEXes for buying and selling.');
+                return false;
+            }
+            
+            // Confirm execution for large amounts
+            const amount = parseFloat(amountInput.value);
+            if (amount > 1000000) {
+                if (!confirm(`You are about to execute a flash loan with ${amount.toLocaleString()} tokens. Are you sure?`)) {
+                    event.preventDefault();
+                    return false;
+                }
+            }
+            
+            // Disable submit button to prevent double submission
+            document.getElementById('execute-btn').disabled = true;
+            document.getElementById('execute-btn').innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Executing...';
+        });
+    });
+</script>
+{% endblock %}

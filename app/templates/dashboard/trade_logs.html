@@ -1,0 +1,762 @@
+{% extends "base.html" %}
+
+{% block title %}Trade Logs - PME-X{% endblock %}
+
+{% block header %}Trade Logs{% endblock %}
+
+{% block content %}
+<!-- Filter Controls -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" action="{{ url_for('dashboard.trade_logs') }}" class="row g-3">
+            <div class="col-md-3">
+                <label for="strategy" class="form-label">Strategy</label>
+                <select class="form-select" id="strategy" name="strategy">
+                    <option value="">All Strategies</option>
+                    {% for strategy_type in strategy_types %}
+                    <option value="{{ strategy_type }}" {% if request.args.get('strategy') == strategy_type %}selected{% endif %}>
+                        {{ strategy_type|replace('_', ' ')|title }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="chain" class="form-label">Chain</label>
+                <select class="form-select" id="chain" name="chain">
+                    <option value="">All Chains</option>
+                    {% for chain in chains %}
+                    <option value="{{ chain.name }}" {% if request.args.get('chain') == chain.name %}selected{% endif %}>
+                        {{ chain.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="status" class="form-label">Status</label>
+                <select class="form-select" id="status" name="status">
+                    <option value="">All Statuses</option>
+                    <option value="completed" {% if request.args.get('status') == 'completed' %}selected{% endif %}>Completed</option>
+                    <option value="pending" {% if request.args.get('status') == 'pending' %}selected{% endif %}>Pending</option>
+                    <option value="failed" {% if request.args.get('status') == 'failed' %}selected{% endif %}>Failed</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="date_range" class="form-label">Date Range</label>
+                <select class="form-select" id="date_range" name="date_range">
+                    <option value="1d" {% if request.args.get('date_range') == '1d' %}selected{% endif %}>Last 24 Hours</option>
+                    <option value="7d" {% if request.args.get('date_range') == '7d' %}selected{% endif %}>Last 7 Days</option>
+                    <option value="30d" {% if request.args.get('date_range') == '30d' or not request.args.get('date_range') %}selected{% endif %}>Last 30 Days</option>
+                    <option value="all" {% if request.args.get('date_range') == 'all' %}selected{% endif %}>All Time</option>
+                </select>
+            </div>
+            <div class="col-md-9">
+                <label for="search" class="form-label">Search</label>
+                <input type="text" class="form-control" id="search" name="search" placeholder="Search by transaction hash..." value="{{ request.args.get('search', '') }}">
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="fas fa-filter me-2"></i> Apply Filters
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Trade Summary -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Total Trades</h6>
+                        <h3 class="mb-0">{{ trades.total }}</h3>
+                    </div>
+                    <i class="fas fa-exchange-alt fa-2x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Total Profit</h6>
+                        <h3 class="mb-0">${{ trades.items|sum(attribute='net_profit')|round(2) }}</h3>
+                    </div>
+                    <i class="fas fa-dollar-sign fa-2x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Avg. Gas Cost</h6>
+                        <h3 class="mb-0">${{ (trades.items|sum(attribute='gas_cost') / trades.items|length)|round(2) if trades.items|length > 0 else 0 }}</h3>
+                    </div>
+                    <i class="fas fa-gas-pump fa-2x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Success Rate</h6>
+                        {% set completed_trades = trades.items|selectattr('status', 'equalto', 'completed')|list|length %}
+                        {% set success_rate = (completed_trades / trades.items|length * 100)|round if trades.items|length > 0 else 0 %}
+                        <h3 class="mb-0">{{ success_rate }}%</h3>
+                    </div>
+                    <i class="fas fa-chart-pie fa-2x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Trade List -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Trade History</h5>
+        <div>
+            <button class="btn btn-sm btn-outline-secondary" id="exportCsvBtn">
+                <i class="fas fa-file-csv me-1"></i> Export CSV
+            </button>
+            <div class="btn-group ms-2">
+                <button class="btn btn-sm btn-outline-primary" id="refreshLogsBtn">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+            </div>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Strategy</th>
+                        <th>Chain</th>
+                        <th>Amount</th>
+                        <th>Profit</th>
+                        <th>Gas Cost</th>
+                        <th>Net Profit</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for trade in trades.items %}
+                    <tr>
+                        <td>{{ trade.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td>{{ trade.strategy_type|replace('_', ' ')|title }}</td>
+                        <td>
+                            <span class="d-flex align-items-center">
+                                <img src="{{ url_for('static', filename='img/chains/' ~ trade.chain ~ '.png') }}" 
+                                     onerror="this.src='{{ url_for('static', filename='img/chains/default.png') }}';"
+                                     width="16" height="16" class="me-1">
+                                {{ trade.chain }}
+                            </span>
+                        </td>
+                        <td>${{ trade.amount|round(2) }}</td>
+                        <td>${{ trade.profit|round(2) }}</td>
+                        <td>${{ trade.gas_cost|round(2) }}</td>
+                        <td class="fw-bold {% if trade.net_profit > 0 %}text-success{% elif trade.net_profit < 0 %}text-danger{% endif %}">
+                            ${{ trade.net_profit|round(2) }}
+                        </td>
+                        <td>
+                            {% if trade.status == 'completed' %}
+                            <span class="badge bg-success">Completed</span>
+                            {% elif trade.status == 'pending' %}
+                            <span class="badge bg-warning">Pending</span>
+                            {% else %}
+                            <span class="badge bg-danger">Failed</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group">
+                                <button class="btn btn-sm btn-outline-primary view-details-btn" data-trade-id="{{ trade.id }}">
+                                    <i class="fas fa-info-circle"></i>
+                                </button>
+                                {% if trade.tx_hash %}
+                                <a href="https://{{ trade.chain }}scan.io/tx/{{ trade.tx_hash }}" target="_blank" class="btn btn-sm btn-outline-info">
+                                    <i class="fas fa-external-link-alt"></i>
+                                </a>
+                                {% endif %}
+                                {% if trade.status == 'failed' %}
+                                <button class="btn btn-sm btn-outline-warning retry-btn" data-trade-id="{{ trade.id }}">
+                                    <i class="fas fa-redo"></i>
+                                </button>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="9" class="text-center py-4">
+                            <p class="text-muted mb-0">No trades found matching the current filters.</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Pagination -->
+        <nav aria-label="Trade pagination">
+            <ul class="pagination justify-content-center mt-4">
+                {% if trades.has_prev %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('dashboard.trade_logs', page=trades.prev_num, **request.args) }}">
+                        <i class="fas fa-angle-left"></i> Previous
+                    </a>
+                </li>
+                {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link"><i class="fas fa-angle-left"></i> Previous</span>
+                </li>
+                {% endif %}
+                
+                {# Display page numbers #}
+                {% for page_num in trades.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                    {% if page_num %}
+                        {% if page_num == trades.page %}
+                        <li class="page-item active">
+                            <span class="page-link">{{ page_num }}</span>
+                        </li>
+                        {% else %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('dashboard.trade_logs', page=page_num, **request.args) }}">{{ page_num }}</a>
+                        </li>
+                        {% endif %}
+                    {% else %}
+                        <li class="page-item disabled">
+                            <span class="page-link">...</span>
+                        </li>
+                    {% endif %}
+                {% endfor %}
+                
+                {% if trades.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('dashboard.trade_logs', page=trades.next_num, **request.args) }}">
+                        Next <i class="fas fa-angle-right"></i>
+                    </a>
+                </li>
+                {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">Next <i class="fas fa-angle-right"></i></span>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+    </div>
+</div>
+
+<!-- Trade Details Modal -->
+<div class="modal fade" id="tradeDetailsModal" tabindex="-1" aria-labelledby="tradeDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="tradeDetailsModalLabel">Trade Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">Strategy</label>
+                            <input type="text" class="form-control" id="detail-strategy" readonly>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Chain</label>
+                            <input type="text" class="form-control" id="detail-chain" readonly>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Transaction Hash</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="detail-tx-hash" readonly>
+                                <button class="btn btn-outline-secondary copy-tx-btn" type="button">
+                                    <i class="fas fa-copy"></i>
+                                </button>
+                                <a class="btn btn-outline-info view-tx-btn" href="#" target="_blank">
+                                    <i class="fas fa-external-link-alt"></i>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">Time</label>
+                            <input type="text" class="form-control" id="detail-time" readonly>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Execution Time</label>
+                            <input type="text" class="form-control" id="detail-execution-time" readonly>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Status</label>
+                            <input type="text" class="form-control" id="detail-status" readonly>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h6 class="card-title">Amount</h6>
+                                <h5 class="mb-0" id="detail-amount"></h5>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h6 class="card-title">Gas Cost</h6>
+                                <h5 class="mb-0" id="detail-gas-cost"></h5>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h6 class="card-title">Net Profit</h6>
+                                <h5 class="mb-0" id="detail-net-profit"></h5>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="accordion" id="tradeDetailsAccordion">
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="strategyDetailsHeading">
+                            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#strategyDetailsCollapse" aria-expanded="true" aria-controls="strategyDetailsCollapse">
+                                Strategy Details
+                            </button>
+                        </h2>
+                        <div id="strategyDetailsCollapse" class="accordion-collapse collapse show" aria-labelledby="strategyDetailsHeading" data-bs-parent="#tradeDetailsAccordion">
+                            <div class="accordion-body" id="strategy-details-content">
+                                <!-- Strategy-specific details will be inserted here -->
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="logDetailsHeading">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#logDetailsCollapse" aria-expanded="false" aria-controls="logDetailsCollapse">
+                                Transaction Logs
+                            </button>
+                        </h2>
+                        <div id="logDetailsCollapse" class="accordion-collapse collapse" aria-labelledby="logDetailsHeading" data-bs-parent="#tradeDetailsAccordion">
+                            <div class="accordion-body">
+                                <pre id="transaction-logs" class="p-3 bg-light rounded"><code>Loading transaction logs...</code></pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="detail-action-btn">View More Details</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-submit form when filters change
+    document.querySelectorAll('#strategy, #chain, #status, #date_range').forEach(select => {
+        select.addEventListener('change', function() {
+            document.querySelector('form').submit();
+        });
+    });
+    
+    // Trade details modal
+    const viewDetailsButtons = document.querySelectorAll('.view-details-btn');
+    const tradeDetailsModal = document.getElementById('tradeDetailsModal');
+    const detailsModal = new bootstrap.Modal(tradeDetailsModal);
+    
+    viewDetailsButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const tradeId = this.getAttribute('data-trade-id');
+            const tradeRow = this.closest('tr');
+            const cells = tradeRow.querySelectorAll('td');
+            
+            // Populate modal with trade details
+            document.getElementById('detail-time').value = cells[0].textContent.trim();
+            document.getElementById('detail-strategy').value = cells[1].textContent.trim();
+            document.getElementById('detail-chain').value = cells[2].textContent.trim();
+            document.getElementById('detail-amount').textContent = cells[3].textContent.trim();
+            document.getElementById('detail-gas-cost').textContent = cells[5].textContent.trim();
+            document.getElementById('detail-net-profit').textContent = cells[6].textContent.trim();
+            document.getElementById('detail-status').value = cells[7].textContent.trim();
+            
+            // Apply color to net profit
+            const netProfit = parseFloat(cells[6].textContent.trim().replace('$', ''));
+            if (netProfit > 0) {
+                document.getElementById('detail-net-profit').classList.add('text-success');
+                document.getElementById('detail-net-profit').classList.remove('text-danger');
+            } else if (netProfit < 0) {
+                document.getElementById('detail-net-profit').classList.add('text-danger');
+                document.getElementById('detail-net-profit').classList.remove('text-success');
+            } else {
+                document.getElementById('detail-net-profit').classList.remove('text-success', 'text-danger');
+            }
+            
+            // Tx hash (may not be available for failed trades)
+            const txLinkElement = tradeRow.querySelector('a[target="_blank"]');
+            if (txLinkElement) {
+                const txHash = txLinkElement.href.split('/').pop();
+                document.getElementById('detail-tx-hash').value = txHash;
+                document.querySelector('.view-tx-btn').href = txLinkElement.href;
+                document.querySelector('.view-tx-btn').classList.remove('disabled');
+                document.querySelector('.copy-tx-btn').classList.remove('disabled');
+            } else {
+                document.getElementById('detail-tx-hash').value = 'N/A';
+                document.querySelector('.view-tx-btn').href = '#';
+                document.querySelector('.view-tx-btn').classList.add('disabled');
+                document.querySelector('.copy-tx-btn').classList.add('disabled');
+            }
+            
+            // Sample execution time (would come from the database in a real implementation)
+            document.getElementById('detail-execution-time').value = (Math.random() * 10).toFixed(2) + ' seconds';
+            
+            // Strategy-specific details based on strategy type
+            const strategyType = cells[1].textContent.trim().toLowerCase().replace(' ', '_');
+            let strategyDetails = '';
+            
+            switch (strategyType) {
+                case 'flash_loan':
+                    strategyDetails = `
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Token</label>
+                                    <input type="text" class="form-control" value="USDC" readonly>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Flash Loan Provider</label>
+                                    <input type="text" class="form-control" value="Aave" readonly>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">DEX 1</label>
+                                    <input type="text" class="form-control" value="Uniswap" readonly>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">DEX 2</label>
+                                    <input type="text" class="form-control" value="SushiSwap" readonly>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Price Difference</label>
+                            <input type="text" class="form-control" value="0.82%" readonly>
+                        </div>
+                    `;
+                    break;
+                    
+                case 'multi_hop':
+                    strategyDetails = `
+                        <div class="mb-3">
+                            <label class="form-label">Trade Path</label>
+                            <input type="text" class="form-control" value="USDC → ETH → WBTC → USDC" readonly>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">DEXes Used</label>
+                                    <input type="text" class="form-control" value="Uniswap, SushiSwap, Curve" readonly>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Slippage</label>
+                                    <input type="text" class="form-control" value="0.1%" readonly>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Trade Steps</label>
+                            <ol class="list-group list-group-numbered">
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    USDC → ETH (Uniswap)
+                                    <span class="badge bg-primary">+0.3%</span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    ETH → WBTC (SushiSwap)
+                                    <span class="badge bg-primary">+0.4%</span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    WBTC → USDC (Curve)
+                                    <span class="badge bg-primary">+0.5%</span>
+                                </li>
+                            </ol>
+                        </div>
+                    `;
+                    break;
+                    
+                case 'cross_chain':
+                    strategyDetails = `
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Source Chain</label>
+                                    <input type="text" class="form-control" value="Ethereum" readonly>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Destination Chain</label>
+                                    <input type="text" class="form-control" value="Polygon" readonly>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Bridge</label>
+                                    <input type="text" class="form-control" value="Polygon Bridge" readonly>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Token</label>
+                                    <input type="text" class="form-control" value="USDC" readonly>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Source Price</label>
+                                    <input type="text" class="form-control" value="$1.00" readonly>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Destination Price</label>
+                                    <input type="text" class="form-control" value="$1.02" readonly>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Bridge Fee</label>
+                            <input type="text" class="form-control" value="$5.00" readonly>
+                        </div>
+                    `;
+                    break;
+                    
+                case 'yield_farming':
+                    strategyDetails = `
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Protocol</label>
+                                    <input type="text" class="form-control" value="Yearn Finance" readonly>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Pool</label>
+                                    <input type="text" class="form-control" value="yvUSDC" readonly>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">APY</label>
+                                    <input type="text" class="form-control" value="8.2%" readonly>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Action</label>
+                                    <input type="text" class="form-control" value="Deposit" readonly>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Strategy Details</label>
+                            <textarea class="form-control" rows="3" readonly>Yearn USDC vault uses a variety of strategies including lending to AAVE and Compound, as well as providing liquidity to Curve pools.</textarea>
+                        </div>
+                    `;
+                    break;
+                    
+                default:
+                    strategyDetails = `<p class="text-center">No strategy-specific details available.</p>`;
+            }
+            
+            document.getElementById('strategy-details-content').innerHTML = strategyDetails;
+            
+            // Mock transaction logs for demonstration
+            document.getElementById('transaction-logs').innerHTML = `<code>Loading transaction logs...</code>`;
+            
+            setTimeout(() => {
+                const mockLogs = `[
+  {
+    "logIndex": "0",
+    "blockNumber": "14523671",
+    "blockHash": "0x8243e43f6bc540318ab69d2d75cbbdbc7b4ba91c24adcd90974f5a0f79f6059f",
+    "transactionHash": "${document.getElementById('detail-tx-hash').value}",
+    "transactionIndex": "42",
+    "address": "0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9",
+    "data": "0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000000000040000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb4800000000000000000000000000000000000000000000000000000000000f42400000000000000000000000000000000000000000000000000000000000000000",
+    "topics": [
+      "0x804c9b842b2748a22bb64b345453a3de7ca54a6ca45ce00d415f1ced3f505609",
+      "0x000000000000000000000000b5e16217ed6c5cb168c2e272cb44fad6331fc22e"
+    ]
+  },
+  {
+    "logIndex": "1",
+    "blockNumber": "14523671",
+    "blockHash": "0x8243e43f6bc540318ab69d2d75cbbdbc7b4ba91c24adcd90974f5a0f79f6059f",
+    "transactionHash": "${document.getElementById('detail-tx-hash').value}",
+    "transactionIndex": "42",
+    "address": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+    "data": "0x0000000000000000000000000000000000000000000000000000000000000001",
+    "topics": [
+      "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+      "0x0000000000000000000000007d2768de32b0b80b7a3454c06bdac94a69ddc7a9",
+      "0x000000000000000000000000b5e16217ed6c5cb168c2e272cb44fad6331fc22e"
+    ]
+  },
+  {
+    "logIndex": "2",
+    "blockNumber": "14523671",
+    "blockHash": "0x8243e43f6bc540318ab69d2d75cbbdbc7b4ba91c24adcd90974f5a0f79f6059f",
+    "transactionHash": "${document.getElementById('detail-tx-hash').value}",
+    "transactionIndex": "42",
+    "address": "0x7a250d5630b4cf539739df2c5dacb4c659f2488d",
+    "data": "0x0000000000000000000000000000000000000000000000000000000000000001",
+    "topics": [
+      "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+      "0x0000000000000000000000007d2768de32b0b80b7a3454c06bdac94a69ddc7a9",
+      "0x000000000000000000000000b5e16217ed6c5cb168c2e272cb44fad6331fc22e"
+    ]
+  }
+]`;
+                document.getElementById('transaction-logs').innerHTML = `<code>${mockLogs}</code>`;
+            }, 1000);
+            
+            detailsModal.show();
+        });
+    });
+    
+    // Copy transaction hash
+    document.querySelector('.copy-tx-btn').addEventListener('click', function() {
+        const txHash = document.getElementById('detail-tx-hash').value;
+        if (txHash !== 'N/A') {
+            navigator.clipboard.writeText(txHash).then(function() {
+                const icon = document.querySelector('.copy-tx-btn i');
+                icon.classList.remove('fa-copy');
+                icon.classList.add('fa-check');
+                
+                setTimeout(function() {
+                    icon.classList.remove('fa-check');
+                    icon.classList.add('fa-copy');
+                }, 2000);
+            });
+        }
+    });
+    
+    // Retry failed trades
+    const retryButtons = document.querySelectorAll('.retry-btn');
+    retryButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const tradeId = this.getAttribute('data-trade-id');
+            
+            // Show loading state
+            this.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            this.disabled = true;
+            
+            // Simulate API call
+            setTimeout(() => {
+                // Update UI to show retry in progress
+                const statusCell = this.closest('tr').querySelector('td:nth-child(8)');
+                statusCell.innerHTML = '<span class="badge bg-warning">Pending</span>';
+                
+                // Reset button
+                this.innerHTML = '<i class="fas fa-redo"></i>';
+                this.disabled = false;
+                
+                // Show notification
+                const notification = document.createElement('div');
+                notification.className = 'alert alert-info alert-dismissible fade show position-fixed top-0 end-0 m-3';
+                notification.innerHTML = `
+                    <strong>Retry Initiated!</strong> Trade #${tradeId} has been queued for retry.
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                `;
+                document.body.appendChild(notification);
+                
+                setTimeout(() => {
+                    notification.remove();
+                }, 3000);
+            }, 1500);
+        });
+    });
+    
+    // Export CSV functionality
+    document.getElementById('exportCsvBtn').addEventListener('click', function() {
+        // Get table data
+        const table = document.querySelector('table');
+        const rows = Array.from(table.querySelectorAll('tbody tr'));
+        
+        // Skip if no data
+        if (rows.length === 0 || rows[0].querySelector('td').colSpan) {
+            alert('No data to export');
+            return;
+        }
+        
+        // Extract headers
+        const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent.trim());
+        
+        // Extract data rows
+        const data = rows.map(row => {
+            return Array.from(row.querySelectorAll('td')).map(td => {
+                // Skip the last column (Actions)
+                if (td === row.lastElementChild) return null;
+                
+                // Handle status badges
+                const badge = td.querySelector('.badge');
+                if (badge) return badge.textContent.trim();
+                
+                // Handle chain with image
+                const chainImg = td.querySelector('img');
+                if (chainImg) return td.textContent.trim();
+                
+                return td.textContent.trim();
+            }).filter(cell => cell !== null);
+        });
+        
+        // Create CSV content
+        let csvContent = headers.slice(0, -1).join(',') + '\n';
+        csvContent += data.map(row => row.join(',')).join('\n');
+        
+        // Create download link
+        const encodedUri = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csvContent);
+        const link = document.createElement('a');
+        link.setAttribute('href', encodedUri);
+        link.setAttribute('download', 'trade_logs_' + new Date().toISOString().slice(0, 10) + '.csv');
+        document.body.appendChild(link);
+        
+        // Trigger download
+        link.click();
+        
+        // Clean up
+        document.body.removeChild(link);
+    });
+    
+    // Refresh logs functionality
+    document.getElementById('refreshLogsBtn').addEventListener('click', function() {
+        // Show loading state
+        this.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        this.disabled = true;
+        
+        // Reload the page after a short delay
+        setTimeout(() => {
+            window.location.reload();
+        }, 1000);
+    });
+});
+</script>
+{% endblock %}

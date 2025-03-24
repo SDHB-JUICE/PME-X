@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}Server Error - PME-X{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">Server Error</h4>
+                </div>
+                <div class="card-body text-center">
+                    <p class="display-1 text-muted">500</p>
+                    <p class="lead">An unexpected error has occurred.</p>
+                    <p>Our team has been notified. Please try again later.</p>
+                    <a href="{{ url_for('dashboard.index') }}" class="btn btn-primary mt-3">
+                        <i class="fas fa-home me-2"></i> Return to Dashboard
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

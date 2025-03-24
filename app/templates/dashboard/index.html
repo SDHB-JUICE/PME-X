@@ -1,0 +1,418 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - PME-X{% endblock %}
+
+{% block header %}Dashboard{% endblock %}
+
+{% block content %}
+<!-- Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Total Profit</h6>
+                        <h3 class="mb-0">${{ total_profit | round(2) }}</h3>
+                    </div>
+                    <i class="fas fa-dollar-sign fa-2x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-success text-white h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Total Trades</h6>
+                        <h3 class="mb-0">{{ total_trades }}</h3>
+                    </div>
+                    <i class="fas fa-exchange-alt fa-2x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-info text-white h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Active Farms</h6>
+                        <h3 class="mb-0">{{ active_farms | length }}</h3>
+                    </div>
+                    <i class="fas fa-seedling fa-2x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-warning text-white h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Active Chains</h6>
+                        <h3 class="mb-0">{{ chain_stats | length }}</h3>
+                    </div>
+                    <i class="fas fa-link fa-2x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Profit Chart & Strategy Cards -->
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="card-title">Profit Over Time</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="profitChart" height="250"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="card-title">Strategy Performance</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Strategy</th>
+                                <th>Trades</th>
+                                <th>Profit</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for strategy in strategy_stats %}
+                            <tr>
+                                <td>{{ strategy.name | replace('_', ' ') | title }}</td>
+                                <td>{{ strategy.count }}</td>
+                                <td class="text-end">${{ strategy.profit | round(2) }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Chain Stats & Recent Trades -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">Chain Performance</h5>
+                <a href="{{ url_for('dashboard.chains') }}" class="btn btn-sm btn-outline-primary">View All</a>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Chain</th>
+                                <th class="text-center">Trades</th>
+                                <th class="text-end">Profit</th>
+                                <th class="text-center">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for chain in chain_stats %}
+                            <tr>
+                                <td>{{ chain.name }}</td>
+                                <td class="text-center">{{ chain.trade_count }}</td>
+                                <td class="text-end">${{ chain.profit | round(2) }}</td>
+                                <td class="text-center">
+                                    {% if chain.status == 'active' %}
+                                    <span class="badge bg-success">Active</span>
+                                    {% elif chain.status == 'inactive' %}
+                                    <span class="badge bg-secondary">Inactive</span>
+                                    {% elif chain.status == 'congested' %}
+                                    <span class="badge bg-warning">Congested</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">Recent Trades</h5>
+                <a href="{{ url_for('dashboard.trade_logs') }}" class="btn btn-sm btn-outline-primary">View All</a>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Strategy</th>
+                                <th>Chain</th>
+                                <th class="text-end">Profit</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for trade in recent_trades %}
+                            <tr>
+                                <td>{{ trade.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                <td>{{ trade.strategy_type | replace('_', ' ') | title }}</td>
+                                <td>{{ trade.chain }}</td>
+                                <td class="text-end">
+                                    {% if trade.net_profit > 0 %}
+                                    <span class="text-success">${{ trade.net_profit | round(2) }}</span>
+                                    {% else %}
+                                    <span class="text-danger">${{ trade.net_profit | round(2) }}</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Active Yield Farms -->
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">Active Yield Farms</h5>
+                <a href="{{ url_for('strategies.execute_yield_farm') }}" class="btn btn-sm btn-outline-primary">New Farm</a>
+            </div>
+            <div class="card-body">
+                {% if active_farms %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Protocol</th>
+                                <th>Pool</th>
+                                <th>Chain</th>
+                                <th class="text-end">Deposit</th>
+                                <th class="text-end">Current Value</th>
+                                <th class="text-center">APY</th>
+                                <th class="text-center">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for farm in active_farms %}
+                            <tr>
+                                <td>{{ farm.protocol }}</td>
+                                <td>{{ farm.pool_name }}</td>
+                                <td>{{ farm.chain }}</td>
+                                <td class="text-end">${{ farm.deposit_amount | round(2) }}</td>
+                                <td class="text-end">${{ farm.current_value | round(2) }}</td>
+                                <td class="text-center">{{ farm.apy | round(2) }}%</td>
+                                <td class="text-center">
+                                    <button class="btn btn-sm btn-success harvest-btn" data-id="{{ farm.id }}">
+                                        <i class="fas fa-leaf"></i> Harvest
+                                    </button>
+                                    <button class="btn btn-sm btn-danger withdraw-btn" data-id="{{ farm.id }}">
+                                        <i class="fas fa-sign-out-alt"></i> Withdraw
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-info mb-0">
+                    No active yield farms. <a href="{{ url_for('strategies.execute_yield_farm') }}">Start a new farm</a>.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Profit chart
+        const ctx = document.getElementById('profitChart').getContext('2d');
+        const chartData = {{ chart_data | safe }};
+        
+        const profitChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: chartData.map(item => item.date),
+                datasets: [{
+                    label: 'Daily Profit ($)',
+                    data: chartData.map(item => item.profit),
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return '$' + value;
+                            }
+                        }
+                    }
+                },
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return 'Profit: $' + context.raw.toFixed(2);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        
+        // Harvest button
+        document.querySelectorAll('.harvest-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const farmId = this.getAttribute('data-id');
+                
+                // Make AJAX request to harvest farm
+                fetch(`/harvest_rewards?farm_id=${farmId}&withdraw=true`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': '{{ csrf_token() if csrf_token else "" }}'
+                        }
+                    })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        window.location.reload();
+                    } else {
+                        alert('Error: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while harvesting rewards.');
+                });
+            });
+        });
+        
+        // Withdraw button
+        document.querySelectorAll('.withdraw-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                if (confirm('Are you sure you want to withdraw from this farm?')) {
+                    const farmId = this.getAttribute('data-id');
+                    
+                    // Make AJAX request to withdraw farm
+                    fetch(`/harvest_rewards?farm_id=${farmId}&withdraw=true`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': '{{ csrf_token() }}'
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            window.location.reload();
+                        } else {
+                            alert('Error: ' + data.error);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('An error occurred while withdrawing from farm.');
+                    });
+                }
+            });
+        });
+        
+        // Execute All modal
+        const executeAllBtn = document.getElementById('executeAllBtn');
+        if (executeAllBtn) {
+            executeAllBtn.addEventListener('click', function() {
+                // Get selected chains
+                const selectedChains = Array.from(document.getElementById('chainSelect').selectedOptions).map(option => option.value);
+                
+                // Get selected strategies
+                const selectedStrategies = Array.from(document.getElementById('strategySelect').selectedOptions).map(option => option.value);
+                
+                // Execute strategies
+                fetch('/execute_full_cycle', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-CSRF-TOKEN': '{{ csrf_token() if csrf_token else "" }}'
+                    },
+                    body: new URLSearchParams({
+                        'chains': selectedChains,
+                        'strategies': selectedStrategies
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(`Execution started successfully!\nTotal profit: $${data.total_profit.toFixed(2)}`);
+                        window.location.reload();
+                    } else {
+                        alert('Error: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred during execution.');
+                });
+                
+                // Close modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('executeAllModal'));
+                modal.hide();
+            });
+        }
+        
+        // Load chains for Execute All modal
+        fetch('/api/stats')
+            .then(response => response.json())
+            .then(data => {
+                const chainSelect = document.getElementById('chainSelect');
+                
+                if (chainSelect) {
+                    // Clear existing options
+                    chainSelect.innerHTML = '';
+                    
+                    // Add chain options
+                    data.chain_stats.forEach(chain => {
+                        const option = document.createElement('option');
+                        option.value = chain.name;
+                        option.text = chain.name;
+                        option.selected = chain.status === 'active';
+                        chainSelect.appendChild(option);
+                    });
+                }
+            })
+            .catch(error => console.error('Error loading chains:', error));
+    });
+</script>
+{% endblock %}

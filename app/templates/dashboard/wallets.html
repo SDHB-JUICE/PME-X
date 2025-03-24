@@ -1,0 +1,1205 @@
+{% extends "base.html" %}
+
+{% block title %}Wallets - PME-X{% endblock %}
+
+{% block header %}Wallet Management{% endblock %}
+
+{% block content %}
+<!-- Wallet Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Total Wallets</h6>
+                        <h3 class="mb-0">{{ wallets|length }}</h3>
+                    </div>
+                    <i class="fas fa-wallet fa-2x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-success text-white h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Total Balance</h6>
+                        <h3 class="mb-0">${{ wallets|sum(attribute='usd_balance')|round(2) }}</h3>
+                    </div>
+                    <i class="fas fa-dollar-sign fa-2x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-info text-white h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Active Wallets</h6>
+                        <h3 class="mb-0">{{ wallets|selectattr('is_active', 'equalto', True)|list|length }}</h3>
+                    </div>
+                    <i class="fas fa-check-circle fa-2x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-warning text-white h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Unique Chains</h6>
+                        <h3 class="mb-0">{{ wallets|map(attribute='chain')|unique|list|length }}</h3>
+                    </div>
+                    <i class="fas fa-link fa-2x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Wallet Actions -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <button class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#addWalletModal">
+                            <i class="fas fa-plus me-2"></i> Add Wallet
+                        </button>
+                        <button class="btn btn-success me-2" data-bs-toggle="modal" data-bs-target="#importWalletModal">
+                            <i class="fas fa-file-import me-2"></i> Import Wallet
+                        </button>
+                        <button class="btn btn-info me-2" id="refreshBalancesBtn">
+                            <i class="fas fa-sync-alt me-2"></i> Refresh Balances
+                        </button>
+                    </div>
+                    <div class="d-flex">
+                        <div class="input-group">
+                            <span class="input-group-text">Chain</span>
+                            <select class="form-select" id="chainFilter">
+                                <option value="all">All Chains</option>
+                                {% for chain in wallets|map(attribute='chain')|unique %}
+                                <option value="{{ chain }}">{{ chain }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="input-group ms-2">
+                            <input type="text" class="form-control" placeholder="Search..." id="walletSearch">
+                            <button class="btn btn-outline-secondary" type="button">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Wallet List -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Wallet List</h5>
+        <div class="btn-group">
+            <button class="btn btn-sm btn-outline-primary active" id="viewGrid">
+                <i class="fas fa-th"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-primary" id="viewList">
+                <i class="fas fa-list"></i>
+            </button>
+        </div>
+    </div>
+    <div class="card-body">
+        <!-- Grid View -->
+        <div class="row g-3" id="walletsGrid">
+            {% for wallet in wallets %}
+            <div class="col-md-4 wallet-item" data-chain="{{ wallet.chain }}">
+                <div class="card h-100 {% if wallet.is_active %}border-success{% else %}border-secondary{% endif %}">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center">
+                            <img src="{{ url_for('static', filename='img/chains/' ~ wallet.chain ~ '.png') }}" 
+                                 onerror="this.src='{{ url_for('static', filename='img/chains/default.png') }}';"
+                                 alt="{{ wallet.chain }}" class="me-2" width="24" height="24" />
+                            <h6 class="mb-0">{{ wallet.chain }}</h6>
+                        </div>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input wallet-active-toggle" type="checkbox" 
+                                  data-wallet-id="{{ wallet.id }}" 
+                                  {% if wallet.is_active %}checked{% endif %}>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <h6 class="text-truncate">
+                            <i class="fas fa-wallet text-muted me-2"></i>
+                            <span class="wallet-address">{{ wallet.address }}</span>
+                        </h6>
+                        <div class="d-flex justify-content-between mt-3">
+                            <div>
+                                <small class="text-muted">Native Balance</small>
+                                <p class="mb-0">{{ wallet.native_balance }} {{ wallet.chain|upper }}</p>
+                            </div>
+                            <div>
+                                <small class="text-muted">USD Value</small>
+                                <p class="mb-0">${{ wallet.usd_balance|round(2) }}</p>
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            <small class="text-muted">Last Updated</small>
+                            <p class="mb-0 small">{{ wallet.last_updated.strftime('%Y-%m-%d %H:%M') }}</p>
+                        </div>
+                    </div>
+                    <div class="card-footer d-flex justify-content-between">
+                        <button class="btn btn-sm btn-outline-primary view-tokens-btn" data-wallet-id="{{ wallet.id }}">
+                            <i class="fas fa-coins me-1"></i> Tokens
+                        </button>
+                        <div class="btn-group">
+                            <button class="btn btn-sm btn-outline-secondary copy-address-btn" data-address="{{ wallet.address }}">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                            <a href="https://{{ wallet.chain }}scan.io/address/{{ wallet.address }}" 
+                               target="_blank" class="btn btn-sm btn-outline-info">
+                                <i class="fas fa-external-link-alt"></i>
+                            </a>
+                            <button class="btn btn-sm btn-outline-danger delete-wallet-btn" data-wallet-id="{{ wallet.id }}">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="col-12 text-center py-5">
+                <i class="fas fa-wallet fa-3x text-muted mb-3"></i>
+                <h5>No wallets found</h5>
+                <p class="text-muted">Add a wallet to get started with trading</p>
+                <button class="btn btn-primary mt-2" data-bs-toggle="modal" data-bs-target="#addWalletModal">
+                    <i class="fas fa-plus me-2"></i> Add Wallet
+                </button>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <!-- List View (initially hidden) -->
+        <div class="table-responsive" id="walletsList" style="display: none;">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Chain</th>
+                        <th>Address</th>
+                        <th>Native Balance</th>
+                        <th>USD Value</th>
+                        <th>Status</th>
+                        <th>Last Updated</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for wallet in wallets %}
+                    <tr class="wallet-item" data-chain="{{ wallet.chain }}">
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <img src="{{ url_for('static', filename='img/chains/' ~ wallet.chain ~ '.png') }}" 
+                                     onerror="this.src='{{ url_for('static', filename='img/chains/default.png') }}';"
+                                     alt="{{ wallet.chain }}" class="me-2" width="24" height="24" />
+                                <span>{{ wallet.chain }}</span>
+                            </div>
+                        </td>
+                        <td class="text-truncate" style="max-width: 150px;">{{ wallet.address }}</td>
+                        <td>{{ wallet.native_balance }} {{ wallet.chain|upper }}</td>
+                        <td>${{ wallet.usd_balance|round(2) }}</td>
+                        <td>
+                            {% if wallet.is_active %}
+                            <span class="badge bg-success">Active</span>
+                            {% else %}
+                            <span class="badge bg-secondary">Inactive</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ wallet.last_updated.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td>
+                            <div class="btn-group">
+                                <button class="btn btn-sm btn-outline-primary view-tokens-btn" data-wallet-id="{{ wallet.id }}">
+                                    <i class="fas fa-coins"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary copy-address-btn" data-address="{{ wallet.address }}">
+                                    <i class="fas fa-copy"></i>
+                                </button>
+                                <a href="https://{{ wallet.chain }}scan.io/address/{{ wallet.address }}" 
+                                   target="_blank" class="btn btn-sm btn-outline-info">
+                                    <i class="fas fa-external-link-alt"></i>
+                                </a>
+                                <button class="btn btn-sm btn-outline-danger delete-wallet-btn" data-wallet-id="{{ wallet.id }}">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center py-4">
+                            <i class="fas fa-wallet fa-2x text-muted mb-3"></i>
+                            <h5>No wallets found</h5>
+                            <p class="text-muted">Add a wallet to get started with trading</p>
+                            <button class="btn btn-primary mt-2" data-bs-toggle="modal" data-bs-target="#addWalletModal">
+                                <i class="fas fa-plus me-2"></i> Add Wallet
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Add Wallet Modal -->
+<div class="modal fade" id="addWalletModal" tabindex="-1" aria-labelledby="addWalletModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addWalletModalLabel">Add New Wallet</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="add-wallet-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token else '' }}">
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Creation Method</label>
+                        <div class="btn-group w-100" role="group">
+                            <input type="radio" class="btn-check" name="wallet-method" id="method-new" autocomplete="off" checked>
+                            <label class="btn btn-outline-primary" for="method-new">Create New</label>
+                            
+                            <input type="radio" class="btn-check" name="wallet-method" id="method-existing" autocomplete="off">
+                            <label class="btn btn-outline-primary" for="method-existing">Use Existing</label>
+                        </div>
+                    </div>
+                    
+                    <div id="new-wallet-fields">
+                        <div class="mb-3">
+                            <label class="form-label">Select Chain</label>
+                            <select class="form-select" id="add-chain" name="chain" required>
+                                <option value="" selected disabled>Choose a chain...</option>
+                                {% for chain in wallets|map(attribute='chain')|unique %}
+                                <option value="{{ chain }}">{{ chain }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            A new wallet will be generated for the selected chain.
+                        </div>
+                    </div>
+                    
+                    <div id="existing-wallet-fields" style="display: none;">
+                        <div class="mb-3">
+                            <label class="form-label">Select Chain</label>
+                            <select class="form-select" id="existing-chain" name="existing-chain" required>
+                                <option value="" selected disabled>Choose a chain...</option>
+                                {% for chain in wallets|map(attribute='chain')|unique %}
+                                <option value="{{ chain }}">{{ chain }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Wallet Address</label>
+                            <input type="text" class="form-control" id="existing-address" name="address"
+                                   placeholder="0x..." required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Private Key (Optional)</label>
+                            <div class="input-group">
+                                <input type="password" class="form-control" id="existing-private-key" name="private-key"
+                                       placeholder="Enter private key to enable trading">
+                                <button class="btn btn-outline-secondary toggle-password" type="button">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                            <div class="form-text">Private key is required for trading operations</div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="add-wallet-btn">Add Wallet</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Import Wallet Modal -->
+<div class="modal fade" id="importWalletModal" tabindex="-1" aria-labelledby="importWalletModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="importWalletModalLabel">Import Wallet</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="import-wallet-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token else '' }}">
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Import Method</label>
+                        <div class="btn-group w-100" role="group">
+                            <input type="radio" class="btn-check" name="import-method" id="method-keystore" autocomplete="off" checked>
+                            <label class="btn btn-outline-primary" for="method-keystore">Keystore</label>
+                            
+                            <input type="radio" class="btn-check" name="import-method" id="method-mnemonic" autocomplete="off">
+                            <label class="btn btn-outline-primary" for="method-mnemonic">Mnemonic</label>
+                            
+                            <input type="radio" class="btn-check" name="import-method" id="method-private-key" autocomplete="off">
+                            <label class="btn btn-outline-primary" for="method-private-key">Private Key</label>
+                        </div>
+                    </div>
+                    
+                    <div id="keystore-fields">
+                        <div class="mb-3">
+                            <label class="form-label">Keystore File</label>
+                            <input type="file" class="form-control" id="keystore-file" accept=".json">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Password</label>
+                            <div class="input-group">
+                                <input type="password" class="form-control" id="keystore-password" placeholder="Enter keystore password">
+                                <button class="btn btn-outline-secondary toggle-password" type="button">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="mnemonic-fields" style="display: none;">
+                        <div class="mb-3">
+                            <label class="form-label">Mnemonic Phrase</label>
+                            <textarea class="form-control" id="mnemonic-phrase" rows="3" 
+                                      placeholder="Enter 12 or 24 word mnemonic phrase"></textarea>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Derivation Path (Optional)</label>
+                            <input type="text" class="form-control" id="derivation-path" 
+                                   placeholder="m/44'/60'/0'/0/0" value="m/44'/60'/0'/0/0">
+                        </div>
+                    </div>
+                    
+                    <div id="private-key-fields" style="display: none;">
+                        <div class="mb-3">
+                            <label class="form-label">Private Key</label>
+                            <div class="input-group">
+                                <input type="password" class="form-control" id="import-private-key" placeholder="Enter private key">
+                                <button class="btn btn-outline-secondary toggle-password" type="button">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Select Chains</label>
+                        <select class="form-select" id="import-chains" multiple size="5">
+                            {% for chain in wallets|map(attribute='chain')|unique %}
+                            <option value="{{ chain }}">{{ chain }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">Hold Ctrl/Cmd to select multiple chains</div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="import-wallet-btn">Import Wallet</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Token Modal -->
+<div class="modal fade" id="tokensModal" tabindex="-1" aria-labelledby="tokensModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="tokensModalLabel">Wallet Tokens</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex justify-content-between mb-3">
+                    <div>
+                        <h6 class="mb-0">Wallet: <span id="token-wallet-address" class="text-truncate"></span></h6>
+                        <small class="text-muted">Chain: <span id="token-wallet-chain"></span></small>
+                    </div>
+                    <button class="btn btn-sm btn-outline-primary" id="refresh-tokens-btn">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                </div>
+                
+                <div class="table-responsive">
+                    <table class="table" id="tokens-table">
+                        <thead>
+                            <tr>
+                                <th>Token</th>
+                                <th>Balance</th>
+                                <th>USD Value</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tokens-list">
+                            <!-- Token rows will be dynamically added here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Confirmation Modal -->
+<div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="confirmModalLabel">Confirm Action</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="confirm-modal-content">
+                Are you sure you want to proceed with this action?
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirm-action-btn">Confirm</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Toggle between grid and list view
+    const viewGridBtn = document.getElementById('viewGrid');
+    const viewListBtn = document.getElementById('viewList');
+    const walletsGrid = document.getElementById('walletsGrid');
+    const walletsList = document.getElementById('walletsList');
+    
+    viewGridBtn.addEventListener('click', function() {
+        walletsGrid.style.display = 'flex';
+        walletsList.style.display = 'none';
+        viewGridBtn.classList.add('active');
+        viewListBtn.classList.remove('active');
+    });
+    
+    viewListBtn.addEventListener('click', function() {
+        walletsGrid.style.display = 'none';
+        walletsList.style.display = 'block';
+        viewGridBtn.classList.remove('active');
+        viewListBtn.classList.add('active');
+    });
+    
+    // Copy address to clipboard
+    const copyButtons = document.querySelectorAll('.copy-address-btn');
+    copyButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const address = this.getAttribute('data-address');
+            navigator.clipboard.writeText(address)
+                .then(() => {
+                    // Show tooltip
+                    this.setAttribute('data-original-title', 'Copied!');
+                    this.setAttribute('title', 'Copied!');
+                    
+                    // Change icon temporarily
+                    const icon = this.querySelector('i');
+                    icon.classList.remove('fa-copy');
+                    icon.classList.add('fa-check');
+                    
+                    // Reset after 2 seconds
+                    setTimeout(() => {
+                        icon.classList.remove('fa-check');
+                        icon.classList.add('fa-copy');
+                        this.setAttribute('title', 'Copy Address');
+                    }, 2000);
+                })
+                .catch(err => {
+                    console.error('Could not copy text: ', err);
+                });
+        });
+    });
+    
+    // Filter wallets by chain
+    const chainFilter = document.getElementById('chainFilter');
+    chainFilter.addEventListener('change', function() {
+        const selectedChain = this.value;
+        const walletItems = document.querySelectorAll('.wallet-item');
+        
+        walletItems.forEach(item => {
+            if (selectedChain === 'all' || item.getAttribute('data-chain') === selectedChain) {
+                item.style.display = '';
+            } else {
+                item.style.display = 'none';
+            }
+        });
+    });
+    
+    // Search wallets
+    const walletSearch = document.getElementById('walletSearch');
+    walletSearch.addEventListener('input', function() {
+        const searchTerm = this.value.toLowerCase();
+        const walletItems = document.querySelectorAll('.wallet-item');
+        
+        walletItems.forEach(item => {
+            const address = item.querySelector('.wallet-address').textContent.toLowerCase();
+            const chain = item.getAttribute('data-chain').toLowerCase();
+            
+            if (address.includes(searchTerm) || chain.includes(searchTerm)) {
+                item.style.display = '';
+            } else {
+                item.style.display = 'none';
+            }
+        });
+    });
+    
+    // Toggle wallet active state
+    const toggleSwitches = document.querySelectorAll('.wallet-active-toggle');
+    toggleSwitches.forEach(toggle => {
+        toggle.addEventListener('change', function() {
+            const walletId = this.getAttribute('data-wallet-id');
+            const isActive = this.checked;
+            
+            // In a real implementation, this would be an API call
+            console.log(`Setting wallet ${walletId} to ${isActive ? 'active' : 'inactive'}`);
+            
+            // Update card border
+            const card = this.closest('.card');
+            if (isActive) {
+                card.classList.remove('border-secondary');
+                card.classList.add('border-success');
+            } else {
+                card.classList.remove('border-success');
+                card.classList.add('border-secondary');
+            }
+        });
+    });
+    
+    // Add wallet modal logic
+    const methodNewRadio = document.getElementById('method-new');
+    const methodExistingRadio = document.getElementById('method-existing');
+    const newWalletFields = document.getElementById('new-wallet-fields');
+    const existingWalletFields = document.getElementById('existing-wallet-fields');
+    
+    methodNewRadio.addEventListener('change', function() {
+        if (this.checked) {
+            newWalletFields.style.display = 'block';
+            existingWalletFields.style.display = 'none';
+        }
+    });
+    
+    methodExistingRadio.addEventListener('change', function() {
+        if (this.checked) {
+            newWalletFields.style.display = 'none';
+            existingWalletFields.style.display = 'block';
+        }
+    });
+    
+    // Import wallet modal logic
+    const methodKeystoreRadio = document.getElementById('method-keystore');
+    const methodMnemonicRadio = document.getElementById('method-mnemonic');
+    const methodPrivateKeyRadio = document.getElementById('method-private-key');
+    const keystoreFields = document.getElementById('keystore-fields');
+    const mnemonicFields = document.getElementById('mnemonic-fields');
+    const privateKeyFields = document.getElementById('private-key-fields');
+    
+    methodKeystoreRadio.addEventListener('change', function() {
+        if (this.checked) {
+            keystoreFields.style.display = 'block';
+            mnemonicFields.style.display = 'none';
+            privateKeyFields.style.display = 'none';
+        }
+    });
+    
+    methodMnemonicRadio.addEventListener('change', function() {
+        if (this.checked) {
+            keystoreFields.style.display = 'none';
+            mnemonicFields.style.display = 'block';
+            privateKeyFields.style.display = 'none';
+        }
+    });
+    
+    methodPrivateKeyRadio.addEventListener('change', function() {
+        if (this.checked) {
+            keystoreFields.style.display = 'none';
+            mnemonicFields.style.display = 'none';
+            privateKeyFields.style.display = 'block';
+        }
+    });
+    
+    // Toggle password visibility
+    const togglePasswordButtons = document.querySelectorAll('.toggle-password');
+    togglePasswordButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const passwordInput = this.previousElementSibling;
+            const icon = this.querySelector('i');
+            
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                icon.classList.remove('fa-eye');
+                icon.classList.add('fa-eye-slash');
+            } else {
+                passwordInput.type = 'password';
+                icon.classList.remove('fa-eye-slash');
+                icon.classList.add('fa-eye');
+            }
+        });
+    });
+    
+    // View tokens functionality
+    const viewTokensButtons = document.querySelectorAll('.view-tokens-btn');
+    const tokensModal = new bootstrap.Modal(document.getElementById('tokensModal'));
+    
+    viewTokensButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const walletId = this.getAttribute('data-wallet-id');
+            const walletRow = this.closest('.wallet-item');
+            const walletAddress = walletRow.querySelector('.wallet-address').textContent;
+            const walletChain = walletRow.getAttribute('data-chain');
+            
+            document.getElementById('token-wallet-address').textContent = walletAddress;
+            document.getElementById('token-wallet-chain').textContent = walletChain;
+            
+            // Clear previous tokens
+            document.getElementById('tokens-list').innerHTML = '';
+            
+            // Show loading state
+            document.getElementById('tokens-list').innerHTML = `
+                <tr>
+                    <td colspan="4" class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">Loading tokens...</p>
+                    </td>
+                </tr>
+            `;
+            
+            // Fetch tokens (mock data for demo)
+            setTimeout(() => {
+                const mockTokens = [
+                    {
+                        symbol: 'ETH',
+                        name: 'Ethereum',
+                        balance: 1.245,
+                        usd_value: 3735.00
+                    },
+                    {
+                        symbol: 'USDC',
+                        name: 'USD Coin',
+                        balance: 5000,
+                        usd_value: 5000.00
+                    },
+                    {
+                        symbol: 'LINK',
+                        name: 'Chainlink',
+                        balance: 200,
+                        usd_value: 2600.00
+                    },
+                    {
+                        symbol: 'UNI',
+                        name: 'Uniswap',
+                        balance: 150,
+                        usd_value: 825.00
+                    }
+                ];
+                
+                // Update tokens list
+                const tokensList = document.getElementById('tokens-list');
+                tokensList.innerHTML = '';
+                
+                mockTokens.forEach(token => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <img src="{{ url_for('static', filename='img/tokens/') }}${token.symbol.toLowerCase()}.png" 
+                                     onerror="this.src='{{ url_for('static', filename='img/tokens/default.png') }}';"
+                                     alt="${token.symbol}" class="me-2" width="24" height="24" />
+                                <div>
+                                    <div>${token.symbol}</div>
+                                    <small class="text-muted">${token.name}</small>
+                                </div>
+                            </div>
+                        </td>
+                        <td>${token.balance.toLocaleString()}</td>
+                        <td>${token.usd_value.toLocaleString()}</td>
+                        <td>
+                            <div class="btn-group">
+                                <button class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-exchange-alt"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary">
+                                    <i class="fas fa-file-contract"></i>
+                                </button>
+                            </div>
+                        </td>
+                    `;
+                    tokensList.appendChild(row);
+                });
+            }, 1000);
+            
+            tokensModal.show();
+        });
+    });
+    
+    // Delete wallet functionality
+    const deleteWalletButtons = document.querySelectorAll('.delete-wallet-btn');
+    const confirmModal = new bootstrap.Modal(document.getElementById('confirmModal'));
+    const confirmActionBtn = document.getElementById('confirm-action-btn');
+    
+    deleteWalletButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const walletId = this.getAttribute('data-wallet-id');
+            const walletRow = this.closest('.wallet-item');
+            const walletAddress = walletRow.querySelector('.wallet-address').textContent;
+            
+            document.getElementById('confirmModalLabel').textContent = 'Delete Wallet';
+            document.getElementById('confirm-modal-content').innerHTML = `
+                <p>Are you sure you want to delete this wallet?</p>
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    This action cannot be undone. Make sure you have backed up your private key.
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Wallet Address</label>
+                    <input type="text" class="form-control" value="${walletAddress}" readonly>
+                </div>
+            `;
+            
+            // Set up confirmation action
+            confirmActionBtn.onclick = function() {
+                // In a real implementation, this would be an API call
+                console.log(`Deleting wallet ${walletId}`);
+                
+                // Remove wallet from DOM
+                walletRow.remove();
+                
+                // Update wallet counts
+                const totalWallets = document.querySelectorAll('.wallet-item').length;
+                document.querySelector('.card.bg-primary .card-body h3').textContent = totalWallets;
+                
+                // Close modal
+                confirmModal.hide();
+                
+                // Show success notification
+                const notification = document.createElement('div');
+                notification.className = 'alert alert-success alert-dismissible fade show position-fixed top-0 end-0 m-3';
+                notification.innerHTML = `
+                    <strong>Success!</strong> Wallet deleted successfully.
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                `;
+                document.body.appendChild(notification);
+                
+                // Auto-dismiss after 3 seconds
+                setTimeout(() => {
+                    notification.remove();
+                }, 3000);
+            };
+            
+            confirmModal.show();
+        });
+    });
+    
+    // Add wallet functionality
+    const addWalletBtn = document.getElementById('add-wallet-btn');
+    addWalletBtn.addEventListener('click', function() {
+        const form = document.getElementById('add-wallet-form');
+        const isNewWallet = document.getElementById('method-new').checked;
+        
+        // Simple validation
+        let isValid = true;
+        
+        if (isNewWallet) {
+            const chain = document.getElementById('add-chain').value;
+            if (!chain) {
+                document.getElementById('add-chain').classList.add('is-invalid');
+                isValid = false;
+            } else {
+                document.getElementById('add-chain').classList.remove('is-invalid');
+            }
+        } else {
+            const chain = document.getElementById('existing-chain').value;
+            const address = document.getElementById('existing-address').value;
+            
+            if (!chain) {
+                document.getElementById('existing-chain').classList.add('is-invalid');
+                isValid = false;
+            } else {
+                document.getElementById('existing-chain').classList.remove('is-invalid');
+            }
+            
+            if (!address || !address.startsWith('0x')) {
+                document.getElementById('existing-address').classList.add('is-invalid');
+                isValid = false;
+            } else {
+                document.getElementById('existing-address').classList.remove('is-invalid');
+            }
+        }
+        
+        if (!isValid) {
+            return;
+        }
+        
+        // In a real implementation, this would be an API call
+        const newWallet = {
+            id: 'new-' + Date.now(),
+            chain: isNewWallet ? document.getElementById('add-chain').value : document.getElementById('existing-chain').value,
+            address: isNewWallet ? '0x' + Math.random().toString(16).substr(2, 40) : document.getElementById('existing-address').value,
+            native_balance: (Math.random() * 10).toFixed(4),
+            usd_balance: (Math.random() * 30000).toFixed(2),
+            is_active: true,
+            last_updated: new Date()
+        };
+        
+        // Create new wallet card
+        const walletGrid = document.getElementById('walletsGrid');
+        const noWalletsMsg = document.querySelector('#walletsGrid .col-12.text-center');
+        
+        if (noWalletsMsg) {
+            noWalletsMsg.remove();
+        }
+        
+        const newWalletCard = document.createElement('div');
+        newWalletCard.className = 'col-md-4 wallet-item';
+        newWalletCard.setAttribute('data-chain', newWallet.chain);
+        
+        newWalletCard.innerHTML = `
+            <div class="card h-100 border-success">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                        <img src="{{ url_for('static', filename='img/chains/') }}${newWallet.chain}.png" 
+                             onerror="this.src='{{ url_for('static', filename='img/chains/default.png') }}';"
+                             alt="${newWallet.chain}" class="me-2" width="24" height="24" />
+                        <h6 class="mb-0">${newWallet.chain}</h6>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input wallet-active-toggle" type="checkbox" 
+                              data-wallet-id="${newWallet.id}" checked>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <h6 class="text-truncate">
+                        <i class="fas fa-wallet text-muted me-2"></i>
+                        <span class="wallet-address">${newWallet.address}</span>
+                    </h6>
+                    <div class="d-flex justify-content-between mt-3">
+                        <div>
+                            <small class="text-muted">Native Balance</small>
+                            <p class="mb-0">${newWallet.native_balance} ${newWallet.chain.toUpperCase()}</p>
+                        </div>
+                        <div>
+                            <small class="text-muted">USD Value</small>
+                            <p class="mb-0">${newWallet.usd_balance}</p>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <small class="text-muted">Last Updated</small>
+                        <p class="mb-0 small">${newWallet.last_updated.toLocaleString()}</p>
+                    </div>
+                </div>
+                <div class="card-footer d-flex justify-content-between">
+                    <button class="btn btn-sm btn-outline-primary view-tokens-btn" data-wallet-id="${newWallet.id}">
+                        <i class="fas fa-coins me-1"></i> Tokens
+                    </button>
+                    <div class="btn-group">
+                        <button class="btn btn-sm btn-outline-secondary copy-address-btn" data-address="${newWallet.address}">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                        <a href="https://${newWallet.chain}scan.io/address/${newWallet.address}" 
+                           target="_blank" class="btn btn-sm btn-outline-info">
+                            <i class="fas fa-external-link-alt"></i>
+                        </a>
+                        <button class="btn btn-sm btn-outline-danger delete-wallet-btn" data-wallet-id="${newWallet.id}">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        walletGrid.appendChild(newWalletCard);
+        
+        // Also add to list view
+        const walletList = document.querySelector('#walletsList tbody');
+        const noWalletsRow = document.querySelector('#walletsList tbody tr td.text-center');
+        
+        if (noWalletsRow) {
+            noWalletsRow.closest('tr').remove();
+        }
+        
+        const newWalletRow = document.createElement('tr');
+        newWalletRow.className = 'wallet-item';
+        newWalletRow.setAttribute('data-chain', newWallet.chain);
+        
+        newWalletRow.innerHTML = `
+            <td>
+                <div class="d-flex align-items-center">
+                    <img src="{{ url_for('static', filename='img/chains/') }}${newWallet.chain}.png" 
+                         onerror="this.src='{{ url_for('static', filename='img/chains/default.png') }}';"
+                         alt="${newWallet.chain}" class="me-2" width="24" height="24" />
+                    <span>${newWallet.chain}</span>
+                </div>
+            </td>
+            <td class="text-truncate" style="max-width: 150px;">${newWallet.address}</td>
+            <td>${newWallet.native_balance} ${newWallet.chain.toUpperCase()}</td>
+            <td>${newWallet.usd_balance}</td>
+            <td>
+                <span class="badge bg-success">Active</span>
+            </td>
+            <td>${newWallet.last_updated.toLocaleString()}</td>
+            <td>
+                <div class="btn-group">
+                    <button class="btn btn-sm btn-outline-primary view-tokens-btn" data-wallet-id="${newWallet.id}">
+                        <i class="fas fa-coins"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary copy-address-btn" data-address="${newWallet.address}">
+                        <i class="fas fa-copy"></i>
+                    </button>
+                    <a href="https://${newWallet.chain}scan.io/address/${newWallet.address}" 
+                       target="_blank" class="btn btn-sm btn-outline-info">
+                        <i class="fas fa-external-link-alt"></i>
+                    </a>
+                    <button class="btn btn-sm btn-outline-danger delete-wallet-btn" data-wallet-id="${newWallet.id}">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </td>
+        `;
+        
+        walletList.appendChild(newWalletRow);
+        
+        // Update counts
+        const totalWallets = document.querySelectorAll('.wallet-item').length;
+        document.querySelector('.card.bg-primary .card-body h3').textContent = totalWallets;
+        
+        // Add event listeners to new buttons
+        newWalletCard.querySelector('.copy-address-btn').addEventListener('click', function() {
+            const address = this.getAttribute('data-address');
+            navigator.clipboard.writeText(address);
+            
+            const icon = this.querySelector('i');
+            icon.classList.remove('fa-copy');
+            icon.classList.add('fa-check');
+            
+            setTimeout(() => {
+                icon.classList.remove('fa-check');
+                icon.classList.add('fa-copy');
+            }, 2000);
+        });
+        
+        newWalletCard.querySelector('.view-tokens-btn').addEventListener('click', function() {
+            const walletId = this.getAttribute('data-wallet-id');
+            const walletAddress = newWallet.address;
+            const walletChain = newWallet.chain;
+            
+            document.getElementById('token-wallet-address').textContent = walletAddress;
+            document.getElementById('token-wallet-chain').textContent = walletChain;
+            
+            // Mock same token loading logic as above
+            document.getElementById('tokens-list').innerHTML = `
+                <tr>
+                    <td colspan="4" class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">Loading tokens...</p>
+                    </td>
+                </tr>
+            `;
+            
+            setTimeout(() => {
+                const mockTokens = [
+                    {
+                        symbol: 'ETH',
+                        name: 'Ethereum',
+                        balance: 1.245,
+                        usd_value: 3735.00
+                    },
+                    {
+                        symbol: 'USDC',
+                        name: 'USD Coin',
+                        balance: 5000,
+                        usd_value: 5000.00
+                    }
+                ];
+                
+                const tokensList = document.getElementById('tokens-list');
+                tokensList.innerHTML = '';
+                
+                mockTokens.forEach(token => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <img src="{{ url_for('static', filename='img/tokens/') }}${token.symbol.toLowerCase()}.png" 
+                                     onerror="this.src='{{ url_for('static', filename='img/tokens/default.png') }}';"
+                                     alt="${token.symbol}" class="me-2" width="24" height="24" />
+                                <div>
+                                    <div>${token.symbol}</div>
+                                    <small class="text-muted">${token.name}</small>
+                                </div>
+                            </div>
+                        </td>
+                        <td>${token.balance.toLocaleString()}</td>
+                        <td>${token.usd_value.toLocaleString()}</td>
+                        <td>
+                            <div class="btn-group">
+                                <button class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-exchange-alt"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary">
+                                    <i class="fas fa-file-contract"></i>
+                                </button>
+                            </div>
+                        </td>
+                    `;
+                    tokensList.appendChild(row);
+                });
+            }, 1000);
+            
+            tokensModal.show();
+        });
+        
+        newWalletCard.querySelector('.delete-wallet-btn').addEventListener('click', function() {
+            const walletId = this.getAttribute('data-wallet-id');
+            const walletAddress = newWallet.address;
+            
+            document.getElementById('confirmModalLabel').textContent = 'Delete Wallet';
+            document.getElementById('confirm-modal-content').innerHTML = `
+                <p>Are you sure you want to delete this wallet?</p>
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    This action cannot be undone. Make sure you have backed up your private key.
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Wallet Address</label>
+                    <input type="text" class="form-control" value="${walletAddress}" readonly>
+                </div>
+            `;
+            
+            confirmActionBtn.onclick = function() {
+                newWalletCard.remove();
+                newWalletRow.remove();
+                
+                const totalWallets = document.querySelectorAll('.wallet-item').length;
+                document.querySelector('.card.bg-primary .card-body h3').textContent = totalWallets;
+                
+                confirmModal.hide();
+                
+                const notification = document.createElement('div');
+                notification.className = 'alert alert-success alert-dismissible fade show position-fixed top-0 end-0 m-3';
+                notification.innerHTML = `
+                    <strong>Success!</strong> Wallet deleted successfully.
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                `;
+                document.body.appendChild(notification);
+                
+                setTimeout(() => {
+                    notification.remove();
+                }, 3000);
+            };
+            
+            confirmModal.show();
+        });
+        
+        // Add similar event listeners to the list view row
+        
+        // Close modal and reset form
+        bootstrap.Modal.getInstance(document.getElementById('addWalletModal')).hide();
+        form.reset();
+        
+        // Show success notification
+        const notification = document.createElement('div');
+        notification.className = 'alert alert-success alert-dismissible fade show position-fixed top-0 end-0 m-3';
+        notification.innerHTML = `
+            <strong>Success!</strong> ${isNewWallet ? 'New wallet created' : 'Existing wallet added'} successfully.
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        `;
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            notification.remove();
+        }, 3000);
+    });
+    
+    // Import wallet functionality
+    document.getElementById('import-wallet-btn').addEventListener('click', function() {
+        alert('Wallet import functionality would be implemented in the full application.');
+        bootstrap.Modal.getInstance(document.getElementById('importWalletModal')).hide();
+    });
+    
+    // Refresh balances functionality
+    document.getElementById('refreshBalancesBtn').addEventListener('click', function() {
+        const button = this;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Refreshing...';
+        button.disabled = true;
+        
+        // Simulate updating balances
+        setTimeout(() => {
+            document.querySelectorAll('.wallet-item').forEach(item => {
+                // Update native balance with random variation
+                const balanceElem = item.querySelector('p:nth-of-type(1)');
+                if (balanceElem) {
+                    const parts = balanceElem.textContent.split(' ');
+                    const currentBalance = parseFloat(parts[0]);
+                    const newBalance = (currentBalance * (1 + (Math.random() - 0.5) * 0.1)).toFixed(4);
+                    balanceElem.textContent = `${newBalance} ${parts[1]}`;
+                }
+                
+                // Update USD value
+                const valueElem = item.querySelector('p:nth-of-type(2)');
+                if (valueElem) {
+                    const currentValue = parseFloat(valueElem.textContent.substring(1));
+                    const newValue = (currentValue * (1 + (Math.random() - 0.5) * 0.05)).toFixed(2);
+                    valueElem.textContent = `${newValue}`;
+                }
+                
+                // Update last updated time
+                const timeElem = item.querySelector('p:nth-of-type(3)');
+                if (timeElem) {
+                    timeElem.textContent = new Date().toLocaleString();
+                }
+            });
+            
+            // Reset button
+            button.innerHTML = '<i class="fas fa-sync-alt me-2"></i> Refresh Balances';
+            button.disabled = false;
+            
+            // Show success notification
+            const notification = document.createElement('div');
+            notification.className = 'alert alert-success alert-dismissible fade show position-fixed top-0 end-0 m-3';
+            notification.innerHTML = `
+                <strong>Success!</strong> Wallet balances updated successfully.
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            `;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }, 2000);
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register - PME-X</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .register-container {
+            max-width: 500px;
+            margin: 80px auto;
+        }
+        .register-logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .register-card {
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .btn-register {
+            font-weight: bold;
+            font-size: 16px;
+            padding: 10px 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container register-container">
+        <div class="register-logo">
+            <h1>PME-X</h1>
+            <p class="text-muted">EVM Profit Maximization Engine</p>
+        </div>
+        
+        <!-- Flash messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        
+        <div class="card register-card">
+            <div class="card-body p-4">
+                <h2 class="card-title text-center mb-4">Create Account</h2>
+                
+                <form method="POST" action="{{ url_for('auth.register') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token else '' }}">
+                    <div class="mb-3">
+                        <label for="username" class="form-label">Username</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="fas fa-user"></i></span>
+                            <input type="text" class="form-control" id="username" name="username" required autofocus>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Email Address</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="fas fa-envelope"></i></span>
+                            <input type="email" class="form-control" id="email" name="email" required>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Password</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="fas fa-lock"></i></span>
+                            <input type="password" class="form-control" id="password" name="password" required>
+                        </div>
+                        <div class="form-text">Password must be at least 8 characters long</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="password_confirm" class="form-label">Confirm Password</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="fas fa-lock"></i></span>
+                            <input type="password" class="form-control" id="password_confirm" name="password_confirm" required>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3 form-check">
+                        <input class="form-check-input" type="checkbox" id="terms" name="terms" required>
+                        <label class="form-check-label" for="terms">
+                            I agree to the <a href="#" data-bs-toggle="modal" data-bs-target="#termsModal">Terms and Conditions</a>
+                        </label>
+                    </div>
+                    
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary btn-register">Register</button>
+                    </div>
+                </form>
+            </div>
+            
+            <div class="card-footer text-center py-3">
+                <p class="mb-0">Already have an account? <a href="{{ url_for('auth.login') }}">Login</a></p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Terms and Conditions Modal -->
+    <div class="modal fade" id="termsModal" tabindex="-1" aria-labelledby="termsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="termsModalLabel">Terms and Conditions</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <h5>PME-X Terms of Use</h5>
+                    <p>These Terms of Use govern your use of the PME-X application ("Application") provided by PME-X ("we," "us," or "our").</p>
+                    
+                    <h6>1. Acceptance of Terms</h6>
+                    <p>By accessing or using the Application, you agree to be bound by these Terms of Use. If you do not agree to these terms, you must not use the Application.</p>
+                    
+                    <h6>2. Description of Service</h6>
+                    <p>The Application is a tool for executing arbitrage, flash loans, and yield farming strategies across Ethereum Virtual Machine (EVM) chains. The Application is provided for educational and experimental purposes only.</p>
+                    
+                    <h6>3. Risk Warning</h6>
+                    <p>Cryptocurrency trading and DeFi activities involve significant risk. You may lose all funds used with this Application. You agree to use the Application at your own risk and acknowledge that we are not responsible for any losses incurred.</p>
+                    
+                    <h6>4. No Financial Advice</h6>
+                    <p>The Application does not provide financial advice. All strategies and trades are executed automatically based on algorithms, and do not consider your personal financial situation.</p>
+                    
+                    <h6>5. Security</h6>
+                    <p>You are responsible for keeping your login credentials and private keys secure. We are not responsible for any unauthorized access to your account or funds.</p>
+                    
+                    <h6>6. Limitation of Liability</h6>
+                    <p>To the maximum extent permitted by law, we shall not be liable for any direct, indirect, incidental, special, consequential, or exemplary damages resulting from your use or inability to use the Application.</p>
+                    
+                    <h6>7. Changes to Terms</h6>
+                    <p>We reserve the right to modify these Terms of Use at any time. Continued use of the Application after any such changes constitutes your acceptance of the new Terms of Use.</p>
+                    
+                    <h6>8. Governing Law</h6>
+                    <p>These Terms of Use shall be governed by and construed in accordance with the laws of the jurisdiction in which we operate, without regard to its conflict of law principles.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" data-bs-dismiss="modal">I Understand</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // Password validation
+        document.querySelector('form').addEventListener('submit', function(event) {
+            const password = document.getElementById('password').value;
+            const confirmPassword = document.getElementById('password_confirm').value;
+            
+            if (password.length < 8) {
+                alert('Password must be at least 8 characters long');
+                event.preventDefault();
+                return false;
+            }
+            
+            if (password !== confirmPassword) {
+                alert('Passwords do not match');
+                event.preventDefault();
+                return false;
+            }
+            
+            if (!document.getElementById('terms').checked) {
+                alert('You must agree to the Terms and Conditions');
+                event.preventDefault();
+                return false;
+            }
+        });
+    </script>
+</body>
+</html>
