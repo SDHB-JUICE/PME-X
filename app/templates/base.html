@@ -10,10 +10,10 @@
     
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
-    
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/wallet_strategies.css') }}">
     {% block styles %}{% endblock %}
 </head>
 <body>
@@ -173,8 +173,13 @@
                     <form id="executeAllForm">
                         <div class="mb-3">
                             <label for="chainSelect" class="form-label">Select Chains</label>
-                            <select class="form-select" id="chainSelect" multiple>
-                                <!-- Chains will be dynamically loaded here -->
+                            <select class="form-select" id="add-chain" name="chain" required>
+                                <option value="" selected disabled>Choose a chain...</option>
+                                {% for chain in chains %}
+                                {% if chain.status == 'active' %}
+                                <option value="{{ chain.name }}">{{ chain.name }}</option>
+                                {% endif %}
+                                {% endfor %}
                             </select>
                         </div>
                         <div class="mb-3">

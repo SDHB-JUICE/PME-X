@@ -1,0 +1,374 @@
+{% extends "base.html" %}
+
+{% block title %}Cross-Chain Arbitrage - PME-X{% endblock %}
+
+{% block header %}Cross-Chain Arbitrage{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- Strategy Configuration Card -->
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title">Configure Cross-Chain Arbitrage</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('strategies.cross_chain_arbitrage') }}">
+                    {{ csrf_token }}
+                    <div class="mb-3">
+                        <label for="source_chain" class="form-label">Source Chain</label>
+                        <select class="form-select" id="source_chain" name="source_chain" required>
+                            <option value="" selected disabled>Select source chain</option>
+                            {% for chain in chains %}
+                                {% if chain.status == 'active' %}
+                                <option value="{{ chain.name }}">{{ chain.name }}</option>
+                                {% endif %}
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">The blockchain where your funds will start</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="target_chain" class="form-label">Target Chain</label>
+                        <select class="form-select" id="target_chain" name="target_chain" required>
+                            <option value="" selected disabled>Select target chain</option>
+                            {% for chain in chains %}
+                                {% if chain.status == 'active' %}
+                                <option value="{{ chain.name }}">{{ chain.name }}</option>
+                                {% endif %}
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">The blockchain to bridge funds to for arbitrage</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="token" class="form-label">Token</label>
+                        <select class="form-select" id="token" name="token" required>
+                            <option value="" selected disabled>Select token</option>
+                            <option value="USDC">USDC</option>
+                            <option value="USDT">USDT</option>
+                            <option value="DAI">DAI</option>
+                            <option value="ETH">ETH/WETH</option>
+                        </select>
+                        <div class="form-text">Token to use for cross-chain arbitrage</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="amount" class="form-label">Amount (USD)</label>
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            <input type="number" class="form-control" id="amount" name="amount" min="1" step="1" required>
+                        </div>
+                        <div class="form-text">Amount to use for arbitrage (in USD equivalent)</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="min_profit" class="form-label">Minimum Profit (%)</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="min_profit" name="min_profit" min="0.1" step="0.1" value="0.5">
+                            <span class="input-group-text">%</span>
+                        </div>
+                        <div class="form-text">Minimum profit threshold to execute trade</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="bridge" class="form-label">Bridge</label>
+                        <select class="form-select" id="bridge" name="bridge">
+                            <option value="auto" selected>Auto (Recommended)</option>
+                            <option value="stargate">Stargate</option>
+                            <option value="across">Across</option>
+                            <option value="hop">Hop Protocol</option>
+                            <option value="celer">Celer cBridge</option>
+                        </select>
+                        <div class="form-text">Bridge protocol to use for cross-chain transfers</div>
+                    </div>
+                    
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="auto_return" name="auto_return" checked>
+                        <label class="form-check-label" for="auto_return">Automatically return profits to source chain</label>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-rocket me-2"></i> Find & Execute Arbitrage
+                    </button>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Current Price Differences Card -->
+        <div class="card mt-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">Current Price Differences</h5>
+                <button class="btn btn-sm btn-outline-secondary" id="refreshPrices">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i> Select source and target chains to view current price differences.
+                </div>
+                
+                <div id="priceDifferences" class="d-none">
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Token</th>
+                                    <th>Source Price</th>
+                                    <th>Target Price</th>
+                                    <th>Difference</th>
+                                </tr>
+                            </thead>
+                            <tbody id="priceTableBody">
+                                <!-- Will be populated via JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Recent Trades Card -->
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">Recent Cross-Chain Trades</h5>
+                <a href="{{ url_for('dashboard.trade_logs') }}?strategy=cross_chain" class="btn btn-sm btn-outline-primary">View All</a>
+            </div>
+            <div class="card-body">
+                {% if recent_trades %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Route</th>
+                                <th>Token</th>
+                                <th class="text-end">Amount</th>
+                                <th class="text-end">Profit</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for trade in recent_trades %}
+                            <tr>
+                                <td>{{ trade.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                <td>{{ trade.chain }}</td>
+                                <td>
+                                    {% if trade.details and trade.details.token %}
+                                        {{ trade.details.token }}
+                                    {% else %}
+                                        USDC
+                                    {% endif %}
+                                </td>
+                                <td class="text-end">${{ trade.amount | round(2) }}</td>
+                                <td class="text-end">
+                                    {% if trade.net_profit > 0 %}
+                                    <span class="text-success">${{ trade.net_profit | round(2) }}</span>
+                                    {% else %}
+                                    <span class="text-danger">${{ trade.net_profit | round(2) }}</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-info mb-0">
+                    No cross-chain arbitrage trades executed yet.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Cross-Chain Bridge Information -->
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title">How Cross-Chain Arbitrage Works</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6 class="mb-3">Process Overview</h6>
+                        <ol>
+                            <li>The system identifies price differences for the same token across different blockchains</li>
+                            <li>Funds are transferred from the source chain to the target chain using a bridge protocol</li>
+                            <li>The token is sold on the target chain at a higher price</li>
+                            <li>Profits can be returned to the source chain or kept on the target chain</li>
+                        </ol>
+                        
+                        <div class="alert alert-warning mt-3">
+                            <i class="fas fa-exclamation-triangle me-2"></i> Cross-chain transfers involve bridge fees and additional wait times. The system accounts for these costs when calculating potential profit.
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <h6 class="mb-3">Supported Bridge Protocols</h6>
+                        <ul>
+                            <li><strong>Stargate:</strong> Supports USDC, USDT, ETH across major chains</li>
+                            <li><strong>Across:</strong> Fast transfers with lower fees for USDC, ETH</li>
+                            <li><strong>Hop Protocol:</strong> Good for stablecoins with competitive fees</li>
+                            <li><strong>Celer cBridge:</strong> Wide range of supported chains</li>
+                        </ul>
+                        
+                        <div class="alert alert-info mt-3">
+                            <i class="fas fa-info-circle me-2"></i> The "Auto" bridge option selects the optimal bridge based on current fees, speed, and liquidity.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const sourceChainSelect = document.getElementById('source_chain');
+        const targetChainSelect = document.getElementById('target_chain');
+        const refreshPricesBtn = document.getElementById('refreshPrices');
+        
+        // Prevent selecting same chain for source and target
+        sourceChainSelect.addEventListener('change', updateTargetChains);
+        targetChainSelect.addEventListener('change', updatePriceDifferences);
+        
+        // Refresh price differences when button clicked
+        refreshPricesBtn.addEventListener('click', function() {
+            updatePriceDifferences();
+        });
+        
+        function updateTargetChains() {
+            const sourceChain = sourceChainSelect.value;
+            
+            // Reset target chain options
+            targetChainSelect.innerHTML = '<option value="" selected disabled>Select target chain</option>';
+            
+            // Add all chains except the selected source chain
+            Array.from(sourceChainSelect.options).forEach(option => {
+                if (option.value && option.value !== sourceChain) {
+                    const newOption = document.createElement('option');
+                    newOption.value = option.value;
+                    newOption.text = option.text;
+                    targetChainSelect.add(newOption);
+                }
+            });
+        }
+        
+        function updatePriceDifferences() {
+            const sourceChain = sourceChainSelect.value;
+            const targetChain = targetChainSelect.value;
+            
+            if (!sourceChain || !targetChain) {
+                document.getElementById('priceDifferences').classList.add('d-none');
+                return;
+            }
+            
+            // Show loading state
+            document.getElementById('priceTableBody').innerHTML = `
+                <tr>
+                    <td colspan="4" class="text-center">
+                        <div class="spinner-border spinner-border-sm text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        Loading current prices...
+                    </td>
+                </tr>
+            `;
+            document.getElementById('priceDifferences').classList.remove('d-none');
+            
+            // In a real application, this would be an API call
+            // For demo, we'll simulate with mock data
+            setTimeout(() => {
+                const mockData = [
+                    {
+                        token: 'USDC',
+                        sourcePrice: 1.002,
+                        targetPrice: 1.008,
+                        difference: 0.6
+                    },
+                    {
+                        token: 'USDT',
+                        sourcePrice: 1.001,
+                        targetPrice: 1.004,
+                        difference: 0.3
+                    },
+                    {
+                        token: 'DAI',
+                        sourcePrice: 0.998,
+                        targetPrice: 1.003,
+                        difference: 0.5
+                    },
+                    {
+                        token: 'ETH',
+                        sourcePrice: 3452.15,
+                        targetPrice: 3463.82,
+                        difference: 0.34
+                    }
+                ];
+                
+                let tableHTML = '';
+                mockData.forEach(item => {
+                    const diffClass = item.difference > 0 ? 'text-success' : 'text-danger';
+                    
+                    tableHTML += `
+                        <tr>
+                            <td>${item.token}</td>
+                            <td>$${item.sourcePrice.toFixed(4)}</td>
+                            <td>$${item.targetPrice.toFixed(4)}</td>
+                            <td class="${diffClass}">${item.difference.toFixed(2)}%</td>
+                        </tr>
+                    `;
+                });
+                
+                document.getElementById('priceTableBody').innerHTML = tableHTML;
+            }, 1000);
+        }
+        
+        // Form validation
+        const form = document.querySelector('form');
+        form.addEventListener('submit', function(event) {
+            const sourceChain = sourceChainSelect.value;
+            const targetChain = targetChainSelect.value;
+            const tokenSelect = document.getElementById('token');
+            const amountInput = document.getElementById('amount');
+            
+            if (!sourceChain) {
+                event.preventDefault();
+                alert('Please select a source blockchain');
+                return;
+            }
+            
+            if (!targetChain) {
+                event.preventDefault();
+                alert('Please select a target blockchain');
+                return;
+            }
+            
+            if (sourceChain === targetChain) {
+                event.preventDefault();
+                alert('Source and target blockchains must be different');
+                return;
+            }
+            
+            if (!tokenSelect.value) {
+                event.preventDefault();
+                alert('Please select a token');
+                return;
+            }
+            
+            const amount = parseFloat(amountInput.value);
+            if (isNaN(amount) || amount <= 0) {
+                event.preventDefault();
+                alert('Please enter a valid amount');
+                return;
+            }
+        });
+    });
+</script>
+{% endblock %}

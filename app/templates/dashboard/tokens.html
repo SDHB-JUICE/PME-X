@@ -1,2624 +1,852 @@
-<div class="modal-footer">
-    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-    <button type="button" class="btn btn-primary" id="deploy-token-btn">Deploy Token</button>
-</div>
-</div>
-</div>
+{% extends "base.html" %}
+
+{% block title %}Token Management - PME-X{% endblock %}
+
+{% block header %}Token Discovery & Management{% endblock %}
+
+{% block content %}
+<!-- Token Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Total Tokens</h6>
+                        <h3 class="mb-0">{{ tokens|length }}</h3>
+                    </div>
+                    <i class="fas fa-coins fa-2x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-success text-white h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Total Value</h6>
+                        <h3 class="mb-0">${{ tokens|sum(attribute='usd_value')|round(2) }}</h3>
+                    </div>
+                    <i class="fas fa-dollar-sign fa-2x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-info text-white h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Token Lists</h6>
+                        <h3 class="mb-0">{{ token_lists|length }}</h3>
+                    </div>
+                    <i class="fas fa-list fa-2x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-warning text-white h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Unique Chains</h6>
+                        <h3 class="mb-0">{{ tokens|map(attribute='chain')|unique|list|length }}</h3>
+                    </div>
+                    <i class="fas fa-link fa-2x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
-<!-- List Token Modal -->
-<div class="modal fade" id="listTokenModal" tabindex="-1" aria-labelledby="listTokenModalLabel" aria-hidden="true">
-<div class="modal-dialog">
-<div class="modal-content">
-<div class="modal-header">
-    <h5 class="modal-title" id="listTokenModalLabel">List Token on DEX</h5>
-    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-</div>
-<div class="modal-body">
-    <form id="list-token-form">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token else '' }}">
-        <input type="hidden" id="list-token-id" name="token_id">
-        
-        <div class="mb-3">
-            <label class="form-label">Token</label>
-            <div class="input-group">
-                <span class="input-group-text token-symbol-display">XXX</span>
-                <input type="text" class="form-control" id="list-token-name" readonly>
+<!-- Token Actions -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <button class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#scanTokensModal">
+                            <i class="fas fa-search me-2"></i> Scan for Tokens
+                        </button>
+                        <button class="btn btn-success me-2" data-bs-toggle="modal" data-bs-target="#addTokenModal">
+                            <i class="fas fa-plus me-2"></i> Add Custom Token
+                        </button>
+                        <button class="btn btn-info me-2" data-bs-toggle="modal" data-bs-target="#importTokenListModal">
+                            <i class="fas fa-file-import me-2"></i> Import Token List
+                        </button>
+                        <button class="btn btn-secondary me-2" id="refreshTokensBtn">
+                            <i class="fas fa-sync-alt me-2"></i> Refresh Balances
+                        </button>
+                    </div>
+                    <div class="d-flex">
+                        <div class="input-group">
+                            <span class="input-group-text">Chain</span>
+                            <select class="form-select" id="chainFilter">
+                                <option value="all">All Chains</option>
+                                {% for chain in chains %}
+                                <option value="{{ chain.name }}">{{ chain.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="input-group ms-2">
+                            <span class="input-group-text">Wallet</span>
+                            <select class="form-select" id="walletFilter">
+                                <option value="all">All Wallets</option>
+                                {% for wallet in wallets %}
+                                <option value="{{ wallet.id }}">{{ wallet.address[:10] }}...</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="input-group ms-2">
+                            <input type="text" class="form-control" placeholder="Search..." id="tokenSearch">
+                            <button class="btn btn-outline-secondary" type="button">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
-        
-        <div class="mb-3">
-            <label for="list-token-dex" class="form-label">DEX</label>
-            <select class="form-select" id="list-token-dex" name="dex" required>
-                <option value="" selected disabled>Choose a DEX...</option>
-                <option value="uniswap">Uniswap</option>
-                <option value="sushiswap">SushiSwap</option>
-                <option value="pancakeswap">PancakeSwap</option>
-                <option value="quickswap">QuickSwap</option>
-            </select>
+    </div>
+</div>
+
+<!-- Token List -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Token List</h5>
+        <div class="btn-group">
+            <button class="btn btn-sm btn-outline-primary active" id="viewGrid">
+                <i class="fas fa-th"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-primary" id="viewList">
+                <i class="fas fa-list"></i>
+            </button>
         </div>
-        
-        <div class="mb-3">
-            <label for="list-token-ratio" class="form-label">Token Ratio</label>
-            <div class="input-group">
-                <input type="number" class="form-control" id="list-token-ratio" name="token_ratio" min="1" value="1000" required>
-                <span class="input-group-text token-per-currency">tokens per ETH</span>
+    </div>
+    <div class="card-body">
+        <!-- Grid View -->
+        <div class="row g-3" id="tokensGrid">
+            {% for token in tokens %}
+            <div class="col-md-4 token-item" data-chain="{{ token.chain }}" data-wallet="{{ token.wallet_id }}">
+                <div class="card h-100">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center">
+                            <img src="{{ token.logo_url or url_for('static', filename='img/tokens/default.jpeg') }}" 
+                                 onerror="this.src='{{ url_for('static', filename='img/tokens/default.jpeg') }}';"
+                                 alt="{{ token.symbol }}" class="me-2" width="24" height="24" />
+                            <h6 class="mb-0">{{ token.symbol }}</h6>
+                        </div>
+                        <span class="badge {% if token.price_24h_change > 0 %}bg-success{% elif token.price_24h_change < 0 %}bg-danger{% else %}bg-secondary{% endif %}">
+                            {% if token.price_24h_change > 0 %}+{% endif %}{{ token.price_24h_change|round(2) }}%
+                        </span>
+                    </div>
+                    <div class="card-body">
+                        <h6 class="text-truncate">
+                            <i class="fas fa-coins text-muted me-2"></i>
+                            <span class="token-name">{{ token.name }}</span>
+                        </h6>
+                        <div class="d-flex justify-content-between mt-3">
+                            <div>
+                                <small class="text-muted">Balance</small>
+                                <p class="mb-0">{{ token.balance|round(4) }}</p>
+                            </div>
+                            <div>
+                                <small class="text-muted">USD Value</small>
+                                <p class="mb-0">${{ token.usd_value|round(2) }}</p>
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            <small class="text-muted">Chain</small>
+                            <p class="mb-0 small">{{ token.chain }}</p>
+                        </div>
+                        <div class="mt-1">
+                            <small class="text-muted">Wallet</small>
+                            <p class="mb-0 small">{{ token.wallet_address[:10] }}...</p>
+                        </div>
+                    </div>
+                    <div class="card-footer d-flex justify-content-between">
+                        <button class="btn btn-sm btn-outline-primary view-token-details-btn" data-token-id="{{ token.id }}">
+                            <i class="fas fa-chart-line me-1"></i> Details
+                        </button>
+                        <div class="btn-group">
+                            <button class="btn btn-sm btn-outline-secondary view-transactions-btn" data-token-id="{{ token.id }}">
+                                <i class="fas fa-exchange-alt"></i>
+                            </button>
+                            <a href="{{ chain_info[token.chain].explorer_url }}/token/{{ token.address }}" 
+                               target="_blank" class="btn btn-sm btn-outline-info">
+                                <i class="fas fa-external-link-alt"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="form-text">Initial price: $<span class="initial-price">0.00</span></div>
+            {% else %}
+            <div class="col-12 text-center py-5">
+                <i class="fas fa-coins fa-3x text-muted mb-3"></i>
+                <h5>No tokens found</h5>
+                <p class="text-muted">Scan for tokens or add them manually to get started</p>
+                <button class="btn btn-primary mt-2" data-bs-toggle="modal" data-bs-target="#scanTokensModal">
+                    <i class="fas fa-search me-2"></i> Scan for Tokens
+                </button>
+            </div>
+            {% endfor %}
         </div>
         
-        <div class="mb-3">
-            <label for="list-token-liquidity" class="form-label">Liquidity Amount</label>
-            <div class="input-group">
-                <input type="number" class="form-control" id="list-token-liquidity" name="liquidity_amount" min="0.01" step="0.01" value="0.5" required>
-                <span class="input-group-text native-currency">ETH</span>
+        <!-- List View (initially hidden) -->
+        <div class="table-responsive" id="tokensList" style="display: none;">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Token</th>
+                        <th>Chain</th>
+                        <th>Wallet</th>
+                        <th>Balance</th>
+                        <th>Price</th>
+                        <th>24h Change</th>
+                        <th>USD Value</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for token in tokens %}
+                    <tr class="token-item" data-chain="{{ token.chain }}" data-wallet="{{ token.wallet_id }}">
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <img src="{{ token.logo_url or url_for('static', filename='img/tokens/default.jpeg') }}" 
+                                     onerror="this.src='{{ url_for('static', filename='img/tokens/default.jpeg') }}';"
+                                     alt="{{ token.symbol }}" class="me-2" width="24" height="24" />
+                                <div>
+                                    <div>{{ token.symbol }}</div>
+                                    <small class="text-muted">{{ token.name }}</small>
+                                </div>
+                            </div>
+                        </td>
+                        <td>{{ token.chain }}</td>
+                        <td class="text-truncate" style="max-width: 150px;">{{ token.wallet_address[:10] }}...</td>
+                        <td>{{ token.balance|round(4) }}</td>
+                        <td>${{ token.current_price|round(4) }}</td>
+                        <td>
+                            <span class="badge {% if token.price_24h_change > 0 %}bg-success{% elif token.price_24h_change < 0 %}bg-danger{% else %}bg-secondary{% endif %}">
+                                {% if token.price_24h_change > 0 %}+{% endif %}{{ token.price_24h_change|round(2) }}%
+                            </span>
+                        </td>
+                        <td>${{ token.usd_value|round(2) }}</td>
+                        <td>
+                            <div class="btn-group">
+                                <button class="btn btn-sm btn-outline-primary view-token-details-btn" data-token-id="{{ token.id }}">
+                                    <i class="fas fa-chart-line"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary view-transactions-btn" data-token-id="{{ token.id }}">
+                                    <i class="fas fa-exchange-alt"></i>
+                                </button>
+                                <a href="{{ chain_info[token.chain].explorer_url }}/token/{{ token.address }}" 
+                                   target="_blank" class="btn btn-sm btn-outline-info">
+                                    <i class="fas fa-external-link-alt"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="8" class="text-center py-4">
+                            <i class="fas fa-coins fa-2x text-muted mb-3"></i>
+                            <h5>No tokens found</h5>
+                            <p class="text-muted">Scan for tokens or add them manually to get started</p>
+                            <button class="btn btn-primary mt-2" data-bs-toggle="modal" data-bs-target="#scanTokensModal">
+                                <i class="fas fa-search me-2"></i> Scan for Tokens
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Scan Tokens Modal -->
+<div class="modal fade" id="scanTokensModal" tabindex="-1" aria-labelledby="scanTokensModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="scanTokensModalLabel">Scan for Tokens</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Select a wallet to scan for tokens:</p>
+                <form id="scan-tokens-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token else '' }}">
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Wallet</label>
+                        <select class="form-select" id="scan-wallet-id" name="wallet_id" required>
+                            <option value="" selected disabled>Choose a wallet...</option>
+                            {% for wallet in wallets %}
+                            <option value="{{ wallet.id }}">{{ wallet.address[:10] }}... ({{ wallet.chain }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="include-token-lists" name="include_token_lists" checked>
+                        <label class="form-check-label" for="include-token-lists">
+                            Include known tokens from token lists
+                        </label>
+                    </div>
+                </form>
+                
+                <div id="scan-progress" style="display: none;">
+                    <div class="progress mb-3">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+                    </div>
+                    <p id="scan-status">Initializing scan...</p>
+                </div>
+                
+                <div id="scan-results" style="display: none;">
+                    <h6>Scan Results:</h6>
+                    <ul class="list-group" id="discovered-tokens-list">
+                        <!-- Discovered tokens will be added here -->
+                    </ul>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="start-scan-btn">Start Scan</button>
             </div>
         </div>
-        
-        <div class="alert alert-info">
-            <i class="fas fa-info-circle me-2"></i>
-            This will add <strong><span class="token-amount">500</span> <span class="token-symbol-display">XXX</span></strong> and <strong><span class="eth-amount">0.5</span> <span class="native-currency">ETH</span></strong> to the liquidity pool.
+    </div>
+</div>
+
+<!-- Add Custom Token Modal -->
+<div class="modal fade" id="addTokenModal" tabindex="-1" aria-labelledby="addTokenModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addTokenModalLabel">Add Custom Token</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="add-token-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token else '' }}">
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Wallet</label>
+                        <select class="form-select" id="add-token-wallet-id" name="wallet_id" required>
+                            <option value="" selected disabled>Choose a wallet...</option>
+                            {% for wallet in wallets %}
+                            <option value="{{ wallet.id }}">{{ wallet.address[:10] }}... ({{ wallet.chain }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Token Address</label>
+                        <input type="text" class="form-control" id="token-address" name="token_address" placeholder="0x..." required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Token Symbol (Optional)</label>
+                        <input type="text" class="form-control" id="token-symbol" name="symbol" placeholder="e.g. USDT">
+                        <div class="form-text">Leave blank to fetch automatically</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Token Name (Optional)</label>
+                        <input type="text" class="form-control" id="token-name" name="name" placeholder="e.g. Tether USD">
+                        <div class="form-text">Leave blank to fetch automatically</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Decimals (Optional)</label>
+                        <input type="number" class="form-control" id="token-decimals" name="decimals" placeholder="e.g. 18">
+                        <div class="form-text">Leave blank to fetch automatically</div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="add-token-btn">Add Token</button>
+            </div>
         </div>
-    </form>
+    </div>
 </div>
-<div class="modal-footer">
-    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-    <button type="button" class="btn btn-primary" id="list-token-btn">List Token</button>
-</div>
-</div>
-</div>
+
+<!-- Import Token List Modal -->
+<div class="modal fade" id="importTokenListModal" tabindex="-1" aria-labelledby="importTokenListModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="importTokenListModalLabel">Import Token List</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="import-token-list-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token else '' }}">
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Token List Name</label>
+                        <input type="text" class="form-control" id="token-list-name" name="name" placeholder="e.g. Uniswap V2 Tokens" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Token List URL</label>
+                        <input type="url" class="form-control" id="token-list-url" name="url" placeholder="https://..." required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Chain</label>
+                        <select class="form-select" id="token-list-chain" name="chain" required>
+                            <option value="" selected disabled>Choose a chain...</option>
+                            {% for chain in chains %}
+                            <option value="{{ chain.name }}">{{ chain.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="import-token-list-btn">Import List</button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- Token Details Modal -->
 <div class="modal fade" id="tokenDetailsModal" tabindex="-1" aria-labelledby="tokenDetailsModalLabel" aria-hidden="true">
-<div class="modal-dialog modal-lg">
-<div class="modal-content">
-<div class="modal-header">
-    <h5 class="modal-title" id="tokenDetailsModalLabel">Token Details</h5>
-    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-</div>
-<div class="modal-body">
-    <div class="row mb-3">
-        <div class="col-md-6">
-            <div class="mb-3">
-                <label class="form-label">Symbol</label>
-                <input type="text" class="form-control" id="detail-symbol" readonly>
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="tokenDetailsModalLabel">Token Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="mb-3">
-                <label class="form-label">Name</label>
-                <input type="text" class="form-control" id="detail-name" readonly>
-            </div>
-            <div class="mb-3">
-                <label class="form-label">Chain</label>
-                <input type="text" class="form-control" id="detail-chain" readonly>
-            </div>
-        </div>
-        <div class="col-md-6">
-            <div class="mb-3">
-                <label class="form-label">Contract Address</label>
-                <div class="input-group">
-                    <input type="text" class="form-control" id="detail-address" readonly>
-                    <button class="btn btn-outline-secondary copy-address-btn" type="button" data-address="">
-                        <i class="fas fa-copy"></i>
-                    </button>
-                    <a class="btn btn-outline-info view-explorer-btn" href="#" target="_blank">
-                        <i class="fas fa-external-link-alt"></i>
-                    </a>
+            <div class="modal-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div class="d-flex align-items-center">
+                        <img id="token-detail-icon" src="{{ url_for('static', filename='img/tokens/default.jpeg') }}" 
+                             alt="Token" class="me-2" width="32" height="32">
+                        <div>
+                            <h5 id="token-detail-symbol" class="mb-0">TOKEN</h5>
+                            <div id="token-detail-name" class="text-muted">Token Name</div>
+                        </div>
+                    </div>
+                    <div class="text-end">
+                        <h5 id="token-detail-price" class="mb-0">$0.00</h5>
+                        <span id="token-detail-change" class="badge bg-secondary">0.00%</span>
+                    </div>
                 </div>
-            </div>
-            <div class="mb-3">
-                <label class="form-label">Deployment Transaction</label>
-                <div class="input-group">
-                    <input type="text" class="form-control" id="detail-deploy-tx" readonly>
-                    <a class="btn btn-outline-info view-tx-btn" href="#" target="_blank">
-                        <i class="fas fa-external-link-alt"></i>
-                    </a>
+                
+                <hr>
+                
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-body">
+                                <h6 class="card-title">Token Info</h6>
+                                <table class="table table-sm">
+                                    <tbody>
+                                        <tr>
+                                            <td>Address</td>
+                                            <td id="token-detail-address">0x...</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Chain</td>
+                                            <td id="token-detail-chain">Chain</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Wallet</td>
+                                            <td id="token-detail-wallet">0x...</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Decimals</td>
+                                            <td id="token-detail-decimals">18</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-body">
+                                <h6 class="card-title">Balance Info</h6>
+                                <table class="table table-sm">
+                                    <tbody>
+                                        <tr>
+                                            <td>Balance</td>
+                                            <td id="token-detail-balance">0.00</td>
+                                        </tr>
+                                        <tr>
+                                            <td>USD Value</td>
+                                            <td id="token-detail-usd-value">$0.00</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Last Updated</td>
+                                            <td id="token-detail-last-updated">-</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-            </div>
-            <div class="mb-3">
-                <label class="form-label">Created</label>
-                <input type="text" class="form-control" id="detail-created" readonly>
-            </div>
-        </div>
-    </div>
-    
-    <div class="row mb-3">
-        <div class="col-md-4">
-            <div class="card bg-light">
-                <div class="card-body">
-                    <h6 class="card-title">Total Supply</h6>
-                    <h5 class="mb-0" id="detail-supply"></h5>
+                
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h6 class="card-title">Price History</h6>
+                        <canvas id="price-history-chart" height="200"></canvas>
+                    </div>
                 </div>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="card bg-light">
-                <div class="card-body">
-                    <h6 class="card-title">Current Price</h6>
-                    <h5 class="mb-0" id="detail-price"></h5>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="card bg-light">
-                <div class="card-body">
-                    <h6 class="card-title">Market Cap</h6>
-                    <h5 class="mb-0" id="detail-market-cap"></h5>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <div class="row mb-3">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header">
-                    <h6 class="mb-0">DEX Listings</h6>
-                </div>
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-sm">
-                            <thead>
-                                <tr>
-                                    <th>DEX</th>
-                                    <th>Listed Date</th>
-                                    <th>Initial Price</th>
-                                    <th>Liquidity</th>
-                                    <th>Action</th>
-                                </tr>
-                            </thead>
-                            <tbody id="detail-listings">
-                                <!-- Listings will be added dynamically -->
-                            </tbody>
-                        </table>
+                
+                <div class="card">
+                    <div class="card-body">
+                        <h6 class="card-title">Recent Transactions</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm" id="token-transactions-table">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Type</th>
+                                        <th>Amount</th>
+                                        <th>From/To</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="token-transactions-body">
+                                    <tr>
+                                        <td colspan="5" class="text-center">Loading transactions...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
-    </div>
-    
-    <div class="row">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header">
-                    <h6 class="mb-0">Price History</h6>
-                </div>
-                <div class="card-body">
-                    <canvas id="priceChart" height="200"></canvas>
-                </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" id="sync-token-transactions-btn">
+                    <i class="fas fa-sync-alt me-1"></i> Sync Transactions
+                </button>
+                <a href="#" id="token-explorer-link" target="_blank" class="btn btn-info">
+                    <i class="fas fa-external-link-alt me-1"></i> View on Explorer
+                </a>
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
     </div>
 </div>
-<div class="modal-footer">
-    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-    <button type="button" class="btn btn-primary list-token-btn" data-token-id="">
-        <i class="fas fa-plus-circle me-1"></i> List on DEX
-    </button>
-</div>
-</div>
-</div>
+
+<!-- Transactions Modal -->
+<div class="modal fade" id="transactionsModal" tabindex="-1" aria-labelledby="transactionsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="transactionsModalLabel">Token Transactions</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex justify-content-between mb-3">
+                    <div>
+                        <h6 class="mb-0" id="transactions-token-info">Token: <span id="transactions-token-symbol"></span></h6>
+                        <small class="text-muted">Wallet: <span id="transactions-wallet-address"></span></small>
+                    </div>
+                    <div class="d-flex">
+                        <div class="input-group me-2">
+                            <span class="input-group-text">Type</span>
+                            <select class="form-select" id="tx-type-filter">
+                                <option value="all">All</option>
+                                <option value="send">Send</option>
+                                <option value="receive">Receive</option>
+                            </select>
+                        </div>
+                        <div class="input-group me-2">
+                            <span class="input-group-text">Date</span>
+                            <input type="date" class="form-control" id="tx-start-date">
+                            <input type="date" class="form-control" id="tx-end-date">
+                        </div>
+                        <button class="btn btn-outline-primary" id="apply-tx-filters">
+                            <i class="fas fa-filter"></i> Apply
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="table-responsive">
+                    <table class="table" id="transactions-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Type</th>
+                                <th>Amount</th>
+                                <th>From</th>
+                                <th>To</th>
+                                <th>Gas</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="transactions-list">
+                            <tr>
+                                <td colspan="8" class="text-center">Loading transactions...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <nav aria-label="Transaction pagination">
+                    <ul class="pagination justify-content-center" id="transaction-pagination">
+                        <!-- Pagination will be dynamically generated -->
+                    </ul>
+                </nav>
+                
+                <div class="d-flex justify-content-between mt-3">
+                    <button class="btn btn-info" id="sync-transactions-btn">
+                        <i class="fas fa-sync-alt me-1"></i> Sync Transactions
+                    </button>
+                    <div>
+                        <button class="btn btn-secondary" id="export-csv-btn">
+                            <i class="fas fa-file-csv me-1"></i> Export CSV
+                        </button>
+                        <button class="btn btn-secondary" id="export-pdf-btn">
+                            <i class="fas fa-file-pdf me-1"></i> Export PDF
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
 </div>
 
-<!-- Delete Token Confirmation Modal -->
-<div class="modal fade" id="deleteTokenModal" tabindex="-1" aria-labelledby="deleteTokenModalLabel" aria-hidden="true">
-<div class="modal-dialog">
-<div class="modal-content">
-<div class="modal-header">
-    <h5 class="modal-title" id="deleteTokenModalLabel">Confirm Deletion</h5>
-    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-</div>
-<div class="modal-body">
-    <p>Are you sure you want to delete this token?</p>
-    <div class="alert alert-warning">
-        <i class="fas fa-exclamation-triangle me-2"></i>
-        This will only remove the token from the database. The contract will still exist on the blockchain.
+<!-- Gas Analytics Modal -->
+<div class="modal fade" id="gasAnalyticsModal" tabindex="-1" aria-labelledby="gasAnalyticsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="gasAnalyticsModalLabel">Gas Usage Analytics</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex justify-content-between mb-3">
+                    <div>
+                        <h6 class="mb-0" id="gas-wallet-info">Wallet: <span id="gas-wallet-address"></span></h6>
+                        <small class="text-muted">Chain: <span id="gas-wallet-chain"></span></small>
+                    </div>
+                    <div>
+                        <div class="btn-group">
+                            <button type="button" class="btn btn-outline-primary btn-sm gas-period-btn active" data-period="30d">30 Days</button>
+                            <button type="button" class="btn btn-outline-primary btn-sm gas-period-btn" data-period="7d">7 Days</button>
+                            <button type="button" class="btn btn-outline-primary btn-sm gas-period-btn" data-period="24h">24 Hours</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col-md-3">
+                        <div class="card bg-light">
+                            <div class="card-body text-center">
+                                <h6 class="card-title">Total Gas Used</h6>
+                                <h3 id="total-gas-used">0</h3>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-light">
+                            <div class="card-body text-center">
+                                <h6 class="card-title">Gas Cost (ETH)</h6>
+                                <h3 id="total-gas-cost-eth">0.00</h3>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-light">
+                            <div class="card-body text-center">
+                                <h6 class="card-title">Gas Cost (USD)</h6>
+                                <h3 id="total-gas-cost-usd">$0.00</h3>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-light">
+                            <div class="card-body text-center">
+                                <h6 class="card-title">Avg Gas (Gwei)</h6>
+                                <h3 id="avg-gas-price">0.00</h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h6 class="card-title">Gas Price Over Time</h6>
+                        <canvas id="gas-price-chart" height="200"></canvas>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-body">
+                                <h6 class="card-title">Gas Usage by Token</h6>
+                                <div class="table-responsive">
+                                    <table class="table table-sm" id="gas-by-token-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Token</th>
+                                                <th>Tx Count</th>
+                                                <th>Gas Used</th>
+                                                <th>Gas Cost</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="gas-by-token-body">
+                                            <tr>
+                                                <td colspan="4" class="text-center">Loading data...</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-body">
+                                <h6 class="card-title">Optimization Suggestions</h6>
+                                <ul class="list-group" id="optimization-suggestions">
+                                    <li class="list-group-item">Loading suggestions...</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
     </div>
-    <div class="mb-3">
-        <label class="form-label">Token</label>
-        <input type="text" class="form-control" id="delete-token-name" readonly>
+</div>
+
+<!-- Transaction Pattern Modal -->
+<div class="modal fade" id="transactionPatternModal" tabindex="-1" aria-labelledby="transactionPatternModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="transactionPatternModalLabel">Transaction Pattern Analysis</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex justify-content-between mb-3">
+                    <div>
+                        <h6 class="mb-0" id="pattern-wallet-info">Wallet: <span id="pattern-wallet-address"></span></h6>
+                        <small class="text-muted">Total Transactions: <span id="pattern-total-transactions">0</span></small>
+                    </div>
+                    <div>
+                        <div class="btn-group">
+                            <button type="button" class="btn btn-outline-primary btn-sm pattern-period-btn active" data-period="all">All Time</button>
+                            <button type="button" class="btn btn-outline-primary btn-sm pattern-period-btn" data-period="30d">30 Days</button>
+                            <button type="button" class="btn btn-outline-primary btn-sm pattern-period-btn" data-period="7d">7 Days</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-body">
+                                <h6 class="card-title">Activity by Day</h6>
+                                <canvas id="activity-by-day-chart" height="200"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-body">
+                                <h6 class="card-title">Activity by Hour</h6>
+                                <canvas id="activity-by-hour-chart" height="200"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-body">
+                                <h6 class="card-title">Transaction Types</h6>
+                                <canvas id="transaction-types-chart" height="200"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-body">
+                                <h6 class="card-title">Frequent Interactions</h6>
+                                <div class="table-responsive">
+                                    <table class="table table-sm" id="frequent-interactions-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Address</th>
+                                                <th>Sent</th>
+                                                <th>Received</th>
+                                                <th>Total</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="frequent-interactions-body">
+                                            <tr>
+                                                <td colspan="4" class="text-center">Loading data...</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card mt-3">
+                    <div class="card-body">
+                        <h6 class="card-title">Recurring Patterns</h6>
+                        <ul class="list-group" id="recurring-patterns">
+                            <li class="list-group-item">Loading patterns...</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
     </div>
-    <div class="mb-3">
-        <label class="form-label">Address</label>
-        <input type="text" class="form-control" id="delete-token-address" readonly>
+</div>
+
+<!-- Confirmation Modal -->
+<div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="confirmModalLabel">Confirm Action</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="confirm-modal-content">
+                Are you sure you want to proceed with this action?
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirm-action-btn">Confirm</button>
+            </div>
+        </div>
     </div>
-</div>
-<div class="modal-footer">
-    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-    <button type="button" class="btn btn-danger" id="confirm-delete-btn">Delete</button>
-</div>
-</div>
-</div>
 </div>
 {% endblock %}
 
 {% block scripts %}
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-// Toggle between card and table view
-const viewCardsBtn = document.getElementById('viewCards');
-const viewTableBtn = document.getElementById('viewTable');
-const tokenCards = document.getElementById('tokenCards');
-const tokenTable = document.getElementById('tokenTable');
-
-viewCardsBtn.addEventListener('click', function() {
-tokenCards.style.display = 'flex';
-tokenTable.style.display = 'none';
-viewCardsBtn.classList.add('active');
-viewTableBtn.classList.remove('active');
-});
-
-viewTableBtn.addEventListener('click', function() {
-tokenCards.style.display = 'none';
-tokenTable.style.display = 'block';
-viewCardsBtn.classList.remove('active');
-viewTableBtn.classList.add('active');
-});
-
-// Filter tokens by chain
-const chainFilter = document.getElementById('chainFilter');
-chainFilter.addEventListener('change', function() {
-const selectedChain = this.value;
-const tokenItems = document.querySelectorAll('.token-item');
-
-tokenItems.forEach(item => {
-if (selectedChain === 'all' || item.getAttribute('data-chain') === selectedChain) {
-    item.style.display = '';
-} else {
-    item.style.display = 'none';
-}
-});
-});
-
-// Search tokens
-const tokenSearch = document.getElementById('tokenSearch');
-tokenSearch.addEventListener('input', function() {
-const searchTerm = this.value.toLowerCase();
-const tokenItems = document.querySelectorAll('.token-item');
-
-tokenItems.forEach(item => {
-const symbol = item.querySelector('h5') ? item.querySelector('h5').textContent.toLowerCase() : '';
-const name = item.querySelector('p') ? item.querySelector('p').textContent.toLowerCase() : '';
-const address = item.querySelector('.form-control') ? item.querySelector('.form-control').value.toLowerCase() : '';
-
-if (symbol.includes(searchTerm) || name.includes(searchTerm) || address.includes(searchTerm)) {
-    item.style.display = '';
-} else {
-    item.style.display = 'none';
-}
-});
-});
-
-// Copy address functionality
-document.querySelectorAll('.copy-address-btn').forEach(button => {
-button.addEventListener('click', function() {
-const address = this.getAttribute('data-address') || this.previousElementSibling.value;
-navigator.clipboard.writeText(address).then(() => {
-    const icon = this.querySelector('i');
-    icon.classList.remove('fa-copy');
-    icon.classList.add('fa-check');
-    
-    setTimeout(() => {
-        icon.classList.remove('fa-check');
-        icon.classList.add('fa-copy');
-    }, 2000);
-});
-});
-});
-
-// Toggle DEX listing fields in deploy token form
-const tokenListDex = document.getElementById('token-list-dex');
-const dexListingFields = document.getElementById('dex-listing-fields');
-
-tokenListDex.addEventListener('change', function() {
-dexListingFields.style.display = this.checked ? 'block' : 'none';
-});
-
-// Dynamic updates for list token modal
-const listTokenRatio = document.getElementById('list-token-ratio');
-const listTokenLiquidity = document.getElementById('list-token-liquidity');
-
-function updateListTokenDisplay() {
-const ratio = parseFloat(listTokenRatio.value) || 1000;
-const liquidity = parseFloat(listTokenLiquidity.value) || 0.5;
-const ethPrice = 3000; // Mock ETH price in USD
-
-const tokenAmount = ratio * liquidity;
-const initialPrice = ethPrice / ratio;
-
-document.querySelector('.token-amount').textContent = tokenAmount.toLocaleString();
-document.querySelector('.eth-amount').textContent = liquidity;
-document.querySelector('.initial-price').textContent = initialPrice.toFixed(6);
-}
-
-listTokenRatio.addEventListener('input', updateListTokenDisplay);
-listTokenLiquidity.addEventListener('input', updateListTokenDisplay);
-
-// List token button functionality
-const listTokenButtons = document.querySelectorAll('.list-token-btn');
-const listTokenModal = new bootstrap.Modal(document.getElementById('listTokenModal'));
-
-listTokenButtons.forEach(button => {
-button.addEventListener('click', function() {
-const tokenId = this.getAttribute('data-token-id');
-const tokenItem = document.querySelector(`.token-item [data-token-id="${tokenId}"]`).closest('.token-item');
-
-// Get token details
-const symbol = tokenItem.querySelector('h5').textContent;
-const name = tokenItem.querySelector('p').textContent;
-const chain = tokenItem.getAttribute('data-chain');
-
-// Update modal
-document.getElementById('list-token-id').value = tokenId;
-document.getElementById('list-token-name').value = name;
-document.querySelectorAll('.token-symbol-display').forEach(el => el.textContent = symbol);
-
-// Set appropriate native currency based on chain
-let nativeCurrency = 'ETH';
-switch (chain.toLowerCase()) {
-    case 'bsc':
-        nativeCurrency = 'BNB';
-        break;
-    case 'polygon':
-        nativeCurrency = 'MATIC';
-        break;
-    case 'avalanche':
-        nativeCurrency = 'AVAX';
-        break;
-    default:
-        nativeCurrency = 'ETH';
-}
-
-document.querySelectorAll('.native-currency').forEach(el => el.textContent = nativeCurrency);
-document.querySelector('.token-per-currency').textContent = `tokens per ${nativeCurrency}`;
-
-// Set default DEX based on chain
-const dexSelect = document.getElementById('list-token-dex');
-dexSelect.innerHTML = '';
-
-if (chain.toLowerCase() === 'bsc') {
-    dexSelect.innerHTML = `
-        <option value="pancakeswap" selected>PancakeSwap</option>
-        <option value="biswap">Biswap</option>
-    `;
-} else if (chain.toLowerCase() === 'polygon') {
-    dexSelect.innerHTML = `
-        <option value="quickswap" selected>QuickSwap</option>
-        <option value="sushiswap">SushiSwap</option>
-    `;
-} else {
-    dexSelect.innerHTML = `
-        <option value="uniswap" selected>Uniswap</option>
-        <option value="sushiswap">SushiSwap</option>
-        <option value="curve">Curve</option>
-    `;
-}
-
-updateListTokenDisplay();
-listTokenModal.show();
-});
-});
-
-// Token details button functionality
-const tokenDetailsButtons = document.querySelectorAll('.token-details-btn');
-const tokenDetailsModal = new bootstrap.Modal(document.getElementById('tokenDetailsModal'));
-let priceChart = null;
-
-tokenDetailsButtons.forEach(button => {
-button.addEventListener('click', function() {
-const tokenId = this.getAttribute('data-token-id');
-const tokenItem = document.querySelector(`.token-item [data-token-id="${tokenId}"]`).closest('.token-item');
-
-// Get token details
-const symbol = tokenItem.querySelector('h5').textContent;
-const name = tokenItem.querySelector('p').textContent;
-const chain = tokenItem.getAttribute('data-chain');
-const address = tokenItem.querySelector('.form-control').value;
-const totalSupply = tokenItem.querySelector('p:nth-of-type(2)') ? tokenItem.querySelector('p:nth-of-type(2)').textContent : '0';
-const currentPrice = tokenItem.querySelector('.badge').textContent;
-const createdAt = tokenItem.querySelector('.card-header .badge') ? tokenItem.querySelector('.card-header .badge').textContent : 'Unknown';
-
-// Update modal
-document.getElementById('detail-symbol').value = symbol;
-document.getElementById('detail-name').value = name;
-document.getElementById('detail-chain').value = chain;
-document.getElementById('detail-address').value = address;
-document.getElementById('detail-created').value = createdAt;
-document.getElementById('detail-supply').textContent = totalSupply;
-document.getElementById('detail-price').textContent = currentPrice;
-
-// Calculate market cap
-const price = parseFloat(currentPrice.replace('{% extends "base.html" %}
-
-{% block title %}Tokens - PME-X{% endblock %}
-
-{% block header %}Token Management{% endblock %}
-
-{% block content %}
-<!-- Token Summary Cards -->
-<div class="row mb-4">
-<div class="col-md-3">
-<div class="card bg-primary text-white h-100">
-<div class="card-body">
-    <div class="d-flex justify-content-between align-items-center">
-        <div>
-            <h6 class="card-title">Total Tokens</h6>
-            <h3 class="mb-0">{{ tokens|length }}</h3>
-        </div>
-        <i class="fas fa-coins fa-2x"></i>
-    </div>
-</div>
-</div>
-</div>
-
-<div class="col-md-3">
-<div class="card bg-success text-white h-100">
-<div class="card-body">
-    <div class="d-flex justify-content-between align-items-center">
-        <div>
-            <h6 class="card-title">Total Value</h6>
-            <h3 class="mb-0">${{ tokens|sum(attribute='current_price')|round(2) }}</h3>
-        </div>
-        <i class="fas fa-dollar-sign fa-2x"></i>
-    </div>
-</div>
-</div>
-</div>
-
-<div class="col-md-3">
-<div class="card bg-info text-white h-100">
-<div class="card-body">
-    <div class="d-flex justify-content-between align-items-center">
-        <div>
-            <h6 class="card-title">DEX Listings</h6>
-            {% set total_listings = tokens|sum(attribute='listed_on|length') %}
-            <h3 class="mb-0">{{ total_listings }}</h3>
-        </div>
-        <i class="fas fa-exchange-alt fa-2x"></i>
-    </div>
-</div>
-</div>
-</div>
-
-<div class="col-md-3">
-<div class="card bg-warning text-white h-100">
-<div class="card-body">
-    <div class="d-flex justify-content-between align-items-center">
-        <div>
-            <h6 class="card-title">Unique Chains</h6>
-            <h3 class="mb-0">{{ tokens|map(attribute='chain')|unique|list|length }}</h3>
-        </div>
-        <i class="fas fa-link fa-2x"></i>
-    </div>
-</div>
-</div>
-</div>
-</div>
-
-<!-- Token Actions -->
-<div class="row mb-4">
-<div class="col-md-12">
-<div class="card">
-<div class="card-body">
-    <div class="d-flex justify-content-between">
-        <div>
-            <button class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#deployTokenModal">
-                <i class="fas fa-plus me-2"></i> Deploy New Token
-            </button>
-            <button class="btn btn-success me-2" id="refreshTokensBtn">
-                <i class="fas fa-sync-alt me-2"></i> Refresh Data
-            </button>
-        </div>
-        <div class="d-flex">
-            <div class="input-group">
-                <span class="input-group-text">Chain</span>
-                <select class="form-select" id="chainFilter">
-                    <option value="all">All Chains</option>
-                    {% for chain in tokens|map(attribute='chain')|unique %}
-                    <option value="{{ chain }}">{{ chain }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="input-group ms-2">
-                <input type="text" class="form-control" placeholder="Search..." id="tokenSearch">
-                <button class="btn btn-outline-secondary" type="button">
-                    <i class="fas fa-search"></i>
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-</div>
-</div>
-</div>
-
-<!-- Token List -->
-<div class="card">
-<div class="card-header d-flex justify-content-between align-items-center">
-<h5 class="mb-0">Deployed Tokens</h5>
-<div class="btn-group">
-<button class="btn btn-sm btn-outline-primary active" id="viewCards">
-    <i class="fas fa-th-large"></i>
-</button>
-<button class="btn btn-sm btn-outline-primary" id="viewTable">
-    <i class="fas fa-list"></i>
-</button>
-</div>
-</div>
-<div class="card-body">
-<!-- Card View -->
-<div class="row g-3" id="tokenCards">
-{% for token in tokens %}
-<div class="col-md-4 token-item" data-chain="{{ token.chain }}">
-    <div class="card h-100">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <div class="d-flex align-items-center">
-                <img src="{{ url_for('static', filename='img/chains/' ~ token.chain ~ '.png') }}" 
-                     onerror="this.src='{{ url_for('static', filename='img/chains/default.png') }}';"
-                     alt="{{ token.chain }}" class="me-2" width="24" height="24" />
-                <h6 class="mb-0">{{ token.chain }}</h6>
-            </div>
-            <span class="badge bg-primary">{{ token.created_at.strftime('%Y-%m-%d') }}</span>
-        </div>
-        <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5 class="mb-0">{{ token.symbol }}</h5>
-                <span class="badge {% if token.current_price > 0 %}bg-success{% else %}bg-secondary{% endif %}">
-                    ${{ token.current_price }}
-                </span>
-            </div>
-            <p class="card-text text-truncate mb-2">{{ token.name }}</p>
-            
-            <div class="mb-3">
-                <small class="text-muted">Address</small>
-                <div class="input-group input-group-sm">
-                    <input type="text" class="form-control" value="{{ token.address }}" readonly>
-                    <button class="btn btn-outline-secondary copy-address-btn" type="button" data-address="{{ token.address }}">
-                        <i class="fas fa-copy"></i>
-                    </button>
-                </div>
-            </div>
-            
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <div>
-                    <small class="text-muted">Total Supply</small>
-                    <p class="mb-0">{{ token.total_supply|int|format(',d') }}</p>
-                </div>
-                <div>
-                    <small class="text-muted">Listings</small>
-                    <p class="mb-0">{{ token.listed_on|length }}</p>
-                </div>
-            </div>
-            
-            <div class="mb-3">
-                <small class="text-muted">Listed On</small>
-                <div class="d-flex flex-wrap gap-1 mt-1">
-                    {% for dex in token.listed_on %}
-                    <span class="badge bg-info">{{ dex }}</span>
-                    {% else %}
-                    <span class="badge bg-secondary">Not Listed</span>
-                    {% endfor %}
-                </div>
-            </div>
-        </div>
-        <div class="card-footer d-flex justify-content-between">
-            <button class="btn btn-sm btn-outline-primary list-token-btn" data-token-id="{{ token.id }}">
-                <i class="fas fa-plus-circle me-1"></i> List on DEX
-            </button>
-            <div class="btn-group">
-                <a href="https://{{ token.chain }}scan.io/address/{{ token.address }}" 
-                   target="_blank" class="btn btn-sm btn-outline-info">
-                    <i class="fas fa-external-link-alt"></i>
-                </a>
-                <button class="btn btn-sm btn-outline-secondary token-details-btn" data-token-id="{{ token.id }}">
-                    <i class="fas fa-info-circle"></i>
-                </button>
-                <button class="btn btn-sm btn-outline-danger delete-token-btn" data-token-id="{{ token.id }}">
-                    <i class="fas fa-trash"></i>
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-{% else %}
-<div class="col-12 text-center py-5">
-    <i class="fas fa-coins fa-3x text-muted mb-3"></i>
-    <h5>No tokens deployed yet</h5>
-    <p class="text-muted">Deploy a new token to get started</p>
-    <button class="btn btn-primary mt-2" data-bs-toggle="modal" data-bs-target="#deployTokenModal">
-        <i class="fas fa-plus me-2"></i> Deploy New Token
-    </button>
-</div>
-{% endfor %}
-</div>
-
-<!-- Table View (initially hidden) -->
-<div class="table-responsive" id="tokenTable" style="display: none;">
-<table class="table table-hover">
-    <thead>
-        <tr>
-            <th>Chain</th>
-            <th>Symbol</th>
-            <th>Name</th>
-            <th>Address</th>
-            <th>Total Supply</th>
-            <th>Price</th>
-            <th>Listings</th>
-            <th>Created</th>
-            <th>Actions</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for token in tokens %}
-        <tr class="token-item" data-chain="{{ token.chain }}">
-            <td>
-                <div class="d-flex align-items-center">
-                    <img src="{{ url_for('static', filename='img/chains/' ~ token.chain ~ '.png') }}" 
-                         onerror="this.src='{{ url_for('static', filename='img/chains/default.png') }}';"
-                         alt="{{ token.chain }}" class="me-2" width="24" height="24" />
-                    <span>{{ token.chain }}</span>
-                </div>
-            </td>
-            <td>{{ token.symbol }}</td>
-            <td>{{ token.name }}</td>
-            <td class="text-truncate" style="max-width: 150px;">{{ token.address }}</td>
-            <td>{{ token.total_supply|int|format(',d') }}</td>
-            <td>${{ token.current_price }}</td>
-            <td>
-                {% for dex in token.listed_on %}
-                <span class="badge bg-info">{{ dex }}</span>
-                {% else %}
-                <span class="badge bg-secondary">Not Listed</span>
-                {% endfor %}
-            </td>
-            <td>{{ token.created_at.strftime('%Y-%m-%d') }}</td>
-            <td>
-                <div class="btn-group">
-                    <button class="btn btn-sm btn-outline-primary list-token-btn" data-token-id="{{ token.id }}">
-                        <i class="fas fa-plus-circle"></i>
-                    </button>
-                    <a href="https://{{ token.chain }}scan.io/address/{{ token.address }}" 
-                       target="_blank" class="btn btn-sm btn-outline-info">
-                        <i class="fas fa-external-link-alt"></i>
-                    </a>
-                    <button class="btn btn-sm btn-outline-secondary token-details-btn" data-token-id="{{ token.id }}">
-                        <i class="fas fa-info-circle"></i>
-                    </button>
-                    <button class="btn btn-sm btn-outline-danger delete-token-btn" data-token-id="{{ token.id }}">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </div>
-            </td>
-        </tr>
-        {% else %}
-        <tr>
-            <td colspan="9" class="text-center py-4">
-                <i class="fas fa-coins fa-2x text-muted mb-3"></i>
-                <h5>No tokens deployed yet</h5>
-                <p class="text-muted">Deploy a new token to get started</p>
-                <button class="btn btn-primary mt-2" data-bs-toggle="modal" data-bs-target="#deployTokenModal">
-                    <i class="fas fa-plus me-2"></i> Deploy New Token
-                </button>
-            </td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
-</div>
-</div>
-</div>
-
-<!-- Deploy Token Modal -->
-<div class="modal fade" id="deployTokenModal" tabindex="-1" aria-labelledby="deployTokenModalLabel" aria-hidden="true">
-<div class="modal-dialog modal-lg">
-<div class="modal-content">
-<div class="modal-header">
-    <h5 class="modal-title" id="deployTokenModalLabel">Deploy New Token</h5>
-    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-</div>
-<div class="modal-body">
-    <form id="deploy-token-form">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token else '' }}">
-        
-        <div class="row">
-            <div class="col-md-6">
-                <div class="mb-3">
-                    <label for="token-name" class="form-label">Token Name</label>
-                    <input type="text" class="form-control" id="token-name" name="name" required placeholder="My Token">
-                </div>
-                <div class="mb-3">
-                    <label for="token-symbol" class="form-label">Token Symbol</label>
-                    <input type="text" class="form-control" id="token-symbol" name="symbol" required placeholder="MTK" maxlength="10">
-                </div>
-                <div class="mb-3">
-                    <label for="token-supply" class="form-label">Total Supply</label>
-                    <div class="input-group">
-                        <input type="number" class="form-control" id="token-supply" name="total_supply" min="1" required placeholder="1000000">
-                        <span class="input-group-text">tokens</span>
-                    </div>
-                </div>
-                <div class="mb-3">
-                    <label for="token-decimals" class="form-label">Decimals</label>
-                    <input type="number" class="form-control" id="token-decimals" name="decimals" min="0" max="18" value="18" required>
-                    <div class="form-text">Number of decimal places (standard is 18)</div>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="mb-3">
-                    <label for="token-chain" class="form-label">Chain</label>
-                    <select class="form-select" id="token-chain" name="chain" required>
-                        <option value="" selected disabled>Choose a chain...</option>
-                        {% for chain in tokens|map(attribute='chain')|unique %}
-                        <option value="{{ chain }}">{{ chain }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="mb-3">
-                    <label for="token-fee" class="form-label">Transfer Fee (%)</label>
-                    <div class="input-group">
-                        <input type="number" class="form-control" id="token-fee" name="transfer_fee_percent" min="0" max="10" value="0" step="0.1" required>
-                        <span class="input-group-text">%</span>
-                    </div>
-                    <div class="form-text">Fee charged on each transfer (0-10%)</div>
-                </div>
-                <div class="mb-3">
-                    <label for="token-rewards" class="form-label">Holder Rewards (%)</label>
-                    <div class="input-group">
-                        <input type="number" class="form-control" id="token-rewards" name="holder_rewards_percent" min="0" max="100" value="0" step="1" required>
-                        <span class="input-group-text">%</span>
-                    </div>
-                    <div class="form-text">Percentage of fees distributed to token holders</div>
-                </div>
-                <div class="form-check mb-3">
-                    <input class="form-check-input" type="checkbox" id="token-list-dex" name="list_on_dex">
-                    <label class="form-check-label" for="token-list-dex">
-                        List on DEX after deployment
-                    </label>
-                </div>
-            </div>
-        </div>
-        
-        <div id="dex-listing-fields" style="display: none;">
-            <hr>
-            <h6>DEX Listing Details</h6>
-            <div class="row">
-                <div class="col-md-6">
-                    <div class="mb-3">
-                        <label for="token-dex" class="form-label">DEX</label>
-                        <select class="form-select" id="token-dex" name="dex">
-                            <option value="uniswap">Uniswap</option>
-                            <option value="sushiswap">SushiSwap</option>
-                            <option value="pancakeswap">PancakeSwap</option>
-                            <option value="quickswap">QuickSwap</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="mb-3">
-                        <label for="token-ratio" class="form-label">Initial Token Ratio</label>
-                        <div class="input-group">
-                            <input type="number" class="form-control" id="token-ratio" name="token_ratio" min="1" value="1000">
-                            <span class="input-group-text">tokens per ETH</span>
-                        </div>
-                        <div class="form-text">How many tokens per ETH/BNB/etc.</div>
-                    </div>
-                </div>
-            </div>
-            <div class="mb-3">
-                <label for="token-liquidity" class="form-label">Liquidity Amount</label>
-                <div class="input-group">
-                    <input type="number" class="form-control" id="token-liquidity" name="liquidity_amount" min="0.01" step="0.01" value="0.5">
-                    <span class="input-group-text">ETH</span>
-                </div>
-                <div class="form-text">Amount of ETH/BNB/etc. to add as liquidity</div>
-            </div>
-        </div>
-    </form>
-</div>
-<div class="modal-footer">
-    <button type="button" class="btn btn-secondary", '')) || 0;
-const supply = parseInt(totalSupply.replace(/,/g, '')) || 0;
-const marketCap = price * supply;
-document.getElementById('detail-market-cap').textContent = '{% extends "base.html" %}
-
-{% block title %}Tokens - PME-X{% endblock %}
-
-{% block header %}Token Management{% endblock %}
-
-{% block content %}
-<!-- Token Summary Cards -->
-<div class="row mb-4">
-<div class="col-md-3">
-<div class="card bg-primary text-white h-100">
-<div class="card-body">
-    <div class="d-flex justify-content-between align-items-center">
-        <div>
-            <h6 class="card-title">Total Tokens</h6>
-            <h3 class="mb-0">{{ tokens|length }}</h3>
-        </div>
-        <i class="fas fa-coins fa-2x"></i>
-    </div>
-</div>
-</div>
-</div>
-
-<div class="col-md-3">
-<div class="card bg-success text-white h-100">
-<div class="card-body">
-    <div class="d-flex justify-content-between align-items-center">
-        <div>
-            <h6 class="card-title">Total Value</h6>
-            <h3 class="mb-0">${{ tokens|sum(attribute='current_price')|round(2) }}</h3>
-        </div>
-        <i class="fas fa-dollar-sign fa-2x"></i>
-    </div>
-</div>
-</div>
-</div>
-
-<div class="col-md-3">
-<div class="card bg-info text-white h-100">
-<div class="card-body">
-    <div class="d-flex justify-content-between align-items-center">
-        <div>
-            <h6 class="card-title">DEX Listings</h6>
-            {% set total_listings = tokens|sum(attribute='listed_on|length') %}
-            <h3 class="mb-0">{{ total_listings }}</h3>
-        </div>
-        <i class="fas fa-exchange-alt fa-2x"></i>
-    </div>
-</div>
-</div>
-</div>
-
-<div class="col-md-3">
-<div class="card bg-warning text-white h-100">
-<div class="card-body">
-    <div class="d-flex justify-content-between align-items-center">
-        <div>
-            <h6 class="card-title">Unique Chains</h6>
-            <h3 class="mb-0">{{ tokens|map(attribute='chain')|unique|list|length }}</h3>
-        </div>
-        <i class="fas fa-link fa-2x"></i>
-    </div>
-</div>
-</div>
-</div>
-</div>
-
-<!-- Token Actions -->
-<div class="row mb-4">
-<div class="col-md-12">
-<div class="card">
-<div class="card-body">
-    <div class="d-flex justify-content-between">
-        <div>
-            <button class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#deployTokenModal">
-                <i class="fas fa-plus me-2"></i> Deploy New Token
-            </button>
-            <button class="btn btn-success me-2" id="refreshTokensBtn">
-                <i class="fas fa-sync-alt me-2"></i> Refresh Data
-            </button>
-        </div>
-        <div class="d-flex">
-            <div class="input-group">
-                <span class="input-group-text">Chain</span>
-                <select class="form-select" id="chainFilter">
-                    <option value="all">All Chains</option>
-                    {% for chain in tokens|map(attribute='chain')|unique %}
-                    <option value="{{ chain }}">{{ chain }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="input-group ms-2">
-                <input type="text" class="form-control" placeholder="Search..." id="tokenSearch">
-                <button class="btn btn-outline-secondary" type="button">
-                    <i class="fas fa-search"></i>
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-</div>
-</div>
-</div>
-
-<!-- Token List -->
-<div class="card">
-<div class="card-header d-flex justify-content-between align-items-center">
-<h5 class="mb-0">Deployed Tokens</h5>
-<div class="btn-group">
-<button class="btn btn-sm btn-outline-primary active" id="viewCards">
-    <i class="fas fa-th-large"></i>
-</button>
-<button class="btn btn-sm btn-outline-primary" id="viewTable">
-    <i class="fas fa-list"></i>
-</button>
-</div>
-</div>
-<div class="card-body">
-<!-- Card View -->
-<div class="row g-3" id="tokenCards">
-{% for token in tokens %}
-<div class="col-md-4 token-item" data-chain="{{ token.chain }}">
-    <div class="card h-100">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <div class="d-flex align-items-center">
-                <img src="{{ url_for('static', filename='img/chains/' ~ token.chain ~ '.png') }}" 
-                     onerror="this.src='{{ url_for('static', filename='img/chains/default.png') }}';"
-                     alt="{{ token.chain }}" class="me-2" width="24" height="24" />
-                <h6 class="mb-0">{{ token.chain }}</h6>
-            </div>
-            <span class="badge bg-primary">{{ token.created_at.strftime('%Y-%m-%d') }}</span>
-        </div>
-        <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5 class="mb-0">{{ token.symbol }}</h5>
-                <span class="badge {% if token.current_price > 0 %}bg-success{% else %}bg-secondary{% endif %}">
-                    ${{ token.current_price }}
-                </span>
-            </div>
-            <p class="card-text text-truncate mb-2">{{ token.name }}</p>
-            
-            <div class="mb-3">
-                <small class="text-muted">Address</small>
-                <div class="input-group input-group-sm">
-                    <input type="text" class="form-control" value="{{ token.address }}" readonly>
-                    <button class="btn btn-outline-secondary copy-address-btn" type="button" data-address="{{ token.address }}">
-                        <i class="fas fa-copy"></i>
-                    </button>
-                </div>
-            </div>
-            
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <div>
-                    <small class="text-muted">Total Supply</small>
-                    <p class="mb-0">{{ token.total_supply|int|format(',d') }}</p>
-                </div>
-                <div>
-                    <small class="text-muted">Listings</small>
-                    <p class="mb-0">{{ token.listed_on|length }}</p>
-                </div>
-            </div>
-            
-            <div class="mb-3">
-                <small class="text-muted">Listed On</small>
-                <div class="d-flex flex-wrap gap-1 mt-1">
-                    {% for dex in token.listed_on %}
-                    <span class="badge bg-info">{{ dex }}</span>
-                    {% else %}
-                    <span class="badge bg-secondary">Not Listed</span>
-                    {% endfor %}
-                </div>
-            </div>
-        </div>
-        <div class="card-footer d-flex justify-content-between">
-            <button class="btn btn-sm btn-outline-primary list-token-btn" data-token-id="{{ token.id }}">
-                <i class="fas fa-plus-circle me-1"></i> List on DEX
-            </button>
-            <div class="btn-group">
-                <a href="https://{{ token.chain }}scan.io/address/{{ token.address }}" 
-                   target="_blank" class="btn btn-sm btn-outline-info">
-                    <i class="fas fa-external-link-alt"></i>
-                </a>
-                <button class="btn btn-sm btn-outline-secondary token-details-btn" data-token-id="{{ token.id }}">
-                    <i class="fas fa-info-circle"></i>
-                </button>
-                <button class="btn btn-sm btn-outline-danger delete-token-btn" data-token-id="{{ token.id }}">
-                    <i class="fas fa-trash"></i>
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-{% else %}
-<div class="col-12 text-center py-5">
-    <i class="fas fa-coins fa-3x text-muted mb-3"></i>
-    <h5>No tokens deployed yet</h5>
-    <p class="text-muted">Deploy a new token to get started</p>
-    <button class="btn btn-primary mt-2" data-bs-toggle="modal" data-bs-target="#deployTokenModal">
-        <i class="fas fa-plus me-2"></i> Deploy New Token
-    </button>
-</div>
-{% endfor %}
-</div>
-
-<!-- Table View (initially hidden) -->
-<div class="table-responsive" id="tokenTable" style="display: none;">
-<table class="table table-hover">
-    <thead>
-        <tr>
-            <th>Chain</th>
-            <th>Symbol</th>
-            <th>Name</th>
-            <th>Address</th>
-            <th>Total Supply</th>
-            <th>Price</th>
-            <th>Listings</th>
-            <th>Created</th>
-            <th>Actions</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for token in tokens %}
-        <tr class="token-item" data-chain="{{ token.chain }}">
-            <td>
-                <div class="d-flex align-items-center">
-                    <img src="{{ url_for('static', filename='img/chains/' ~ token.chain ~ '.png') }}" 
-                         onerror="this.src='{{ url_for('static', filename='img/chains/default.png') }}';"
-                         alt="{{ token.chain }}" class="me-2" width="24" height="24" />
-                    <span>{{ token.chain }}</span>
-                </div>
-            </td>
-            <td>{{ token.symbol }}</td>
-            <td>{{ token.name }}</td>
-            <td class="text-truncate" style="max-width: 150px;">{{ token.address }}</td>
-            <td>{{ token.total_supply|int|format(',d') }}</td>
-            <td>${{ token.current_price }}</td>
-            <td>
-                {% for dex in token.listed_on %}
-                <span class="badge bg-info">{{ dex }}</span>
-                {% else %}
-                <span class="badge bg-secondary">Not Listed</span>
-                {% endfor %}
-            </td>
-            <td>{{ token.created_at.strftime('%Y-%m-%d') }}</td>
-            <td>
-                <div class="btn-group">
-                    <button class="btn btn-sm btn-outline-primary list-token-btn" data-token-id="{{ token.id }}">
-                        <i class="fas fa-plus-circle"></i>
-                    </button>
-                    <a href="https://{{ token.chain }}scan.io/address/{{ token.address }}" 
-                       target="_blank" class="btn btn-sm btn-outline-info">
-                        <i class="fas fa-external-link-alt"></i>
-                    </a>
-                    <button class="btn btn-sm btn-outline-secondary token-details-btn" data-token-id="{{ token.id }}">
-                        <i class="fas fa-info-circle"></i>
-                    </button>
-                    <button class="btn btn-sm btn-outline-danger delete-token-btn" data-token-id="{{ token.id }}">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </div>
-            </td>
-        </tr>
-        {% else %}
-        <tr>
-            <td colspan="9" class="text-center py-4">
-                <i class="fas fa-coins fa-2x text-muted mb-3"></i>
-                <h5>No tokens deployed yet</h5>
-                <p class="text-muted">Deploy a new token to get started</p>
-                <button class="btn btn-primary mt-2" data-bs-toggle="modal" data-bs-target="#deployTokenModal">
-                    <i class="fas fa-plus me-2"></i> Deploy New Token
-                </button>
-            </td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
-</div>
-</div>
-</div>
-
-<!-- Deploy Token Modal -->
-<div class="modal fade" id="deployTokenModal" tabindex="-1" aria-labelledby="deployTokenModalLabel" aria-hidden="true">
-<div class="modal-dialog modal-lg">
-<div class="modal-content">
-<div class="modal-header">
-    <h5 class="modal-title" id="deployTokenModalLabel">Deploy New Token</h5>
-    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-</div>
-<div class="modal-body">
-    <form id="deploy-token-form">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token else '' }}">
-        
-        <div class="row">
-            <div class="col-md-6">
-                <div class="mb-3">
-                    <label for="token-name" class="form-label">Token Name</label>
-                    <input type="text" class="form-control" id="token-name" name="name" required placeholder="My Token">
-                </div>
-                <div class="mb-3">
-                    <label for="token-symbol" class="form-label">Token Symbol</label>
-                    <input type="text" class="form-control" id="token-symbol" name="symbol" required placeholder="MTK" maxlength="10">
-                </div>
-                <div class="mb-3">
-                    <label for="token-supply" class="form-label">Total Supply</label>
-                    <div class="input-group">
-                        <input type="number" class="form-control" id="token-supply" name="total_supply" min="1" required placeholder="1000000">
-                        <span class="input-group-text">tokens</span>
-                    </div>
-                </div>
-                <div class="mb-3">
-                    <label for="token-decimals" class="form-label">Decimals</label>
-                    <input type="number" class="form-control" id="token-decimals" name="decimals" min="0" max="18" value="18" required>
-                    <div class="form-text">Number of decimal places (standard is 18)</div>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="mb-3">
-                    <label for="token-chain" class="form-label">Chain</label>
-                    <select class="form-select" id="token-chain" name="chain" required>
-                        <option value="" selected disabled>Choose a chain...</option>
-                        {% for chain in tokens|map(attribute='chain')|unique %}
-                        <option value="{{ chain }}">{{ chain }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="mb-3">
-                    <label for="token-fee" class="form-label">Transfer Fee (%)</label>
-                    <div class="input-group">
-                        <input type="number" class="form-control" id="token-fee" name="transfer_fee_percent" min="0" max="10" value="0" step="0.1" required>
-                        <span class="input-group-text">%</span>
-                    </div>
-                    <div class="form-text">Fee charged on each transfer (0-10%)</div>
-                </div>
-                <div class="mb-3">
-                    <label for="token-rewards" class="form-label">Holder Rewards (%)</label>
-                    <div class="input-group">
-                        <input type="number" class="form-control" id="token-rewards" name="holder_rewards_percent" min="0" max="100" value="0" step="1" required>
-                        <span class="input-group-text">%</span>
-                    </div>
-                    <div class="form-text">Percentage of fees distributed to token holders</div>
-                </div>
-                <div class="form-check mb-3">
-                    <input class="form-check-input" type="checkbox" id="token-list-dex" name="list_on_dex">
-                    <label class="form-check-label" for="token-list-dex">
-                        List on DEX after deployment
-                    </label>
-                </div>
-            </div>
-        </div>
-        
-        <div id="dex-listing-fields" style="display: none;">
-            <hr>
-            <h6>DEX Listing Details</h6>
-            <div class="row">
-                <div class="col-md-6">
-                    <div class="mb-3">
-                        <label for="token-dex" class="form-label">DEX</label>
-                        <select class="form-select" id="token-dex" name="dex">
-                            <option value="uniswap">Uniswap</option>
-                            <option value="sushiswap">SushiSwap</option>
-                            <option value="pancakeswap">PancakeSwap</option>
-                            <option value="quickswap">QuickSwap</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="mb-3">
-                        <label for="token-ratio" class="form-label">Initial Token Ratio</label>
-                        <div class="input-group">
-                            <input type="number" class="form-control" id="token-ratio" name="token_ratio" min="1" value="1000">
-                            <span class="input-group-text">tokens per ETH</span>
-                        </div>
-                        <div class="form-text">How many tokens per ETH/BNB/etc.</div>
-                    </div>
-                </div>
-            </div>
-            <div class="mb-3">
-                <label for="token-liquidity" class="form-label">Liquidity Amount</label>
-                <div class="input-group">
-                    <input type="number" class="form-control" id="token-liquidity" name="liquidity_amount" min="0.01" step="0.01" value="0.5">
-                    <span class="input-group-text">ETH</span>
-                </div>
-                <div class="form-text">Amount of ETH/BNB/etc. to add as liquidity</div>
-            </div>
-        </div>
-    </form>
-</div>
-<div class="modal-footer">
-    <button type="button" class="btn btn-secondary" + marketCap.toLocaleString();
-
-// Set explorer links
-const explorerUrl = `https://${chain}scan.io/address/${address}`;
-document.querySelector('.view-explorer-btn').href = explorerUrl;
-
-// Mock deploy tx
-const deployTx = '0x' + Math.random().toString(16).substr(2, 64);
-document.getElementById('detail-deploy-tx').value = deployTx;
-document.querySelector('.view-tx-btn').href = `https://${chain}scan.io/tx/${deployTx}`;
-
-// Set button data
-document.querySelector('#tokenDetailsModal .list-token-btn').setAttribute('data-token-id', tokenId);
-document.querySelector('#tokenDetailsModal .copy-address-btn').setAttribute('data-address', address);
-
-// Mock DEX listings
-const dexListings = tokenItem.querySelectorAll('.badge.bg-info');
-const listingsTable = document.getElementById('detail-listings');
-listingsTable.innerHTML = '';
-
-if (dexListings.length > 0) {
-    dexListings.forEach((listing, index) => {
-        const dexName = listing.textContent;
-        const listDate = new Date();
-        listDate.setDate(listDate.getDate() - Math.floor(Math.random() * 30));
-        
-        const initialPrice = (Math.random() * 0.01 + 0.001).toFixed(6);
-        const liquidity = (Math.random() * 10 + 1).toFixed(2);
-        
-        const row = document.createElement('tr');
-        row.innerHTML = `
-            <td>${dexName}</td>
-            <td>${listDate.toISOString().split('T')[0]}</td>
-            <td>${initialPrice}</td>
-            <td>${liquidity}</td>
-            <td>
-                <a href="https://${chain}scan.io/address/${address}#tokentxns" target="_blank" class="btn btn-sm btn-outline-info">
-                    <i class="fas fa-external-link-alt"></i>
-                </a>
-            </td>
-        `;
-        
-        listingsTable.appendChild(row);
-    });
-} else {
-    const row = document.createElement('tr');
-    row.innerHTML = `
-        <td colspan="5" class="text-center">
-            Not listed on any DEX yet
-        </td>
-    `;
-    listingsTable.appendChild(row);
-}
-
-// Generate price chart data
-updatePriceChart(symbol);
-
-tokenDetailsModal.show();
-});
-});
-
-function updatePriceChart(symbol) {
-const ctx = document.getElementById('priceChart').getContext('2d');
-
-// Destroy previous chart if exists
-if (priceChart) {
-priceChart.destroy();
-}
-
-// Generate mock data
-const labels = [];
-const data = [];
-const currentDate = new Date();
-
-// Generate data for the last 30 days
-for (let i = 30; i >= 0; i--) {
-const date = new Date(currentDate);
-date.setDate(date.getDate() - i);
-labels.push(date.toLocaleDateString());
-
-// Random price with upward trend
-const basePrice = 0.001;
-const trendfactor = 1 + (30 - i) * 0.01;
-const randomness = 0.8 + Math.random() * 0.4;
-data.push((basePrice * trendfactor * randomness).toFixed(6));
-}
-
-// Create chart
-priceChart = new Chart(ctx, {
-type: 'line',
-data: {
-    labels: labels,
-    datasets: [{
-        label: `${symbol} Price (USD)`,
-        data: data,
-        borderColor: 'rgba(54, 162, 235, 1)',
-        backgroundColor: 'rgba(54, 162, 235, 0.1)',
-        borderWidth: 2,
-        tension: 0.4,
-        fill: true
-    }]
-},
-options: {
-    responsive: true,
-    maintainAspectRatio: false,
-    scales: {
-        y: {
-            beginAtZero: false,
-            ticks: {
-                callback: function(value) {
-                    return '{% extends "base.html" %}
-
-{% block title %}Tokens - PME-X{% endblock %}
-
-{% block header %}Token Management{% endblock %}
-
-{% block content %}
-<!-- Token Summary Cards -->
-<div class="row mb-4">
-<div class="col-md-3">
-<div class="card bg-primary text-white h-100">
-<div class="card-body">
-    <div class="d-flex justify-content-between align-items-center">
-        <div>
-            <h6 class="card-title">Total Tokens</h6>
-            <h3 class="mb-0">{{ tokens|length }}</h3>
-        </div>
-        <i class="fas fa-coins fa-2x"></i>
-    </div>
-</div>
-</div>
-</div>
-
-<div class="col-md-3">
-<div class="card bg-success text-white h-100">
-<div class="card-body">
-    <div class="d-flex justify-content-between align-items-center">
-        <div>
-            <h6 class="card-title">Total Value</h6>
-            <h3 class="mb-0">${{ tokens|sum(attribute='current_price')|round(2) }}</h3>
-        </div>
-        <i class="fas fa-dollar-sign fa-2x"></i>
-    </div>
-</div>
-</div>
-</div>
-
-<div class="col-md-3">
-<div class="card bg-info text-white h-100">
-<div class="card-body">
-    <div class="d-flex justify-content-between align-items-center">
-        <div>
-            <h6 class="card-title">DEX Listings</h6>
-            {% set total_listings = tokens|sum(attribute='listed_on|length') %}
-            <h3 class="mb-0">{{ total_listings }}</h3>
-        </div>
-        <i class="fas fa-exchange-alt fa-2x"></i>
-    </div>
-</div>
-</div>
-</div>
-
-<div class="col-md-3">
-<div class="card bg-warning text-white h-100">
-<div class="card-body">
-    <div class="d-flex justify-content-between align-items-center">
-        <div>
-            <h6 class="card-title">Unique Chains</h6>
-            <h3 class="mb-0">{{ tokens|map(attribute='chain')|unique|list|length }}</h3>
-        </div>
-        <i class="fas fa-link fa-2x"></i>
-    </div>
-</div>
-</div>
-</div>
-</div>
-
-<!-- Token Actions -->
-<div class="row mb-4">
-<div class="col-md-12">
-<div class="card">
-<div class="card-body">
-    <div class="d-flex justify-content-between">
-        <div>
-            <button class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#deployTokenModal">
-                <i class="fas fa-plus me-2"></i> Deploy New Token
-            </button>
-            <button class="btn btn-success me-2" id="refreshTokensBtn">
-                <i class="fas fa-sync-alt me-2"></i> Refresh Data
-            </button>
-        </div>
-        <div class="d-flex">
-            <div class="input-group">
-                <span class="input-group-text">Chain</span>
-                <select class="form-select" id="chainFilter">
-                    <option value="all">All Chains</option>
-                    {% for chain in tokens|map(attribute='chain')|unique %}
-                    <option value="{{ chain }}">{{ chain }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="input-group ms-2">
-                <input type="text" class="form-control" placeholder="Search..." id="tokenSearch">
-                <button class="btn btn-outline-secondary" type="button">
-                    <i class="fas fa-search"></i>
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-</div>
-</div>
-</div>
-
-<!-- Token List -->
-<div class="card">
-<div class="card-header d-flex justify-content-between align-items-center">
-<h5 class="mb-0">Deployed Tokens</h5>
-<div class="btn-group">
-<button class="btn btn-sm btn-outline-primary active" id="viewCards">
-    <i class="fas fa-th-large"></i>
-</button>
-<button class="btn btn-sm btn-outline-primary" id="viewTable">
-    <i class="fas fa-list"></i>
-</button>
-</div>
-</div>
-<div class="card-body">
-<!-- Card View -->
-<div class="row g-3" id="tokenCards">
-{% for token in tokens %}
-<div class="col-md-4 token-item" data-chain="{{ token.chain }}">
-    <div class="card h-100">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <div class="d-flex align-items-center">
-                <img src="{{ url_for('static', filename='img/chains/' ~ token.chain ~ '.png') }}" 
-                     onerror="this.src='{{ url_for('static', filename='img/chains/default.png') }}';"
-                     alt="{{ token.chain }}" class="me-2" width="24" height="24" />
-                <h6 class="mb-0">{{ token.chain }}</h6>
-            </div>
-            <span class="badge bg-primary">{{ token.created_at.strftime('%Y-%m-%d') }}</span>
-        </div>
-        <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5 class="mb-0">{{ token.symbol }}</h5>
-                <span class="badge {% if token.current_price > 0 %}bg-success{% else %}bg-secondary{% endif %}">
-                    ${{ token.current_price }}
-                </span>
-            </div>
-            <p class="card-text text-truncate mb-2">{{ token.name }}</p>
-            
-            <div class="mb-3">
-                <small class="text-muted">Address</small>
-                <div class="input-group input-group-sm">
-                    <input type="text" class="form-control" value="{{ token.address }}" readonly>
-                    <button class="btn btn-outline-secondary copy-address-btn" type="button" data-address="{{ token.address }}">
-                        <i class="fas fa-copy"></i>
-                    </button>
-                </div>
-            </div>
-            
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <div>
-                    <small class="text-muted">Total Supply</small>
-                    <p class="mb-0">{{ token.total_supply|int|format(',d') }}</p>
-                </div>
-                <div>
-                    <small class="text-muted">Listings</small>
-                    <p class="mb-0">{{ token.listed_on|length }}</p>
-                </div>
-            </div>
-            
-            <div class="mb-3">
-                <small class="text-muted">Listed On</small>
-                <div class="d-flex flex-wrap gap-1 mt-1">
-                    {% for dex in token.listed_on %}
-                    <span class="badge bg-info">{{ dex }}</span>
-                    {% else %}
-                    <span class="badge bg-secondary">Not Listed</span>
-                    {% endfor %}
-                </div>
-            </div>
-        </div>
-        <div class="card-footer d-flex justify-content-between">
-            <button class="btn btn-sm btn-outline-primary list-token-btn" data-token-id="{{ token.id }}">
-                <i class="fas fa-plus-circle me-1"></i> List on DEX
-            </button>
-            <div class="btn-group">
-                <a href="https://{{ token.chain }}scan.io/address/{{ token.address }}" 
-                   target="_blank" class="btn btn-sm btn-outline-info">
-                    <i class="fas fa-external-link-alt"></i>
-                </a>
-                <button class="btn btn-sm btn-outline-secondary token-details-btn" data-token-id="{{ token.id }}">
-                    <i class="fas fa-info-circle"></i>
-                </button>
-                <button class="btn btn-sm btn-outline-danger delete-token-btn" data-token-id="{{ token.id }}">
-                    <i class="fas fa-trash"></i>
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-{% else %}
-<div class="col-12 text-center py-5">
-    <i class="fas fa-coins fa-3x text-muted mb-3"></i>
-    <h5>No tokens deployed yet</h5>
-    <p class="text-muted">Deploy a new token to get started</p>
-    <button class="btn btn-primary mt-2" data-bs-toggle="modal" data-bs-target="#deployTokenModal">
-        <i class="fas fa-plus me-2"></i> Deploy New Token
-    </button>
-</div>
-{% endfor %}
-</div>
-
-<!-- Table View (initially hidden) -->
-<div class="table-responsive" id="tokenTable" style="display: none;">
-<table class="table table-hover">
-    <thead>
-        <tr>
-            <th>Chain</th>
-            <th>Symbol</th>
-            <th>Name</th>
-            <th>Address</th>
-            <th>Total Supply</th>
-            <th>Price</th>
-            <th>Listings</th>
-            <th>Created</th>
-            <th>Actions</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for token in tokens %}
-        <tr class="token-item" data-chain="{{ token.chain }}">
-            <td>
-                <div class="d-flex align-items-center">
-                    <img src="{{ url_for('static', filename='img/chains/' ~ token.chain ~ '.png') }}" 
-                         onerror="this.src='{{ url_for('static', filename='img/chains/default.png') }}';"
-                         alt="{{ token.chain }}" class="me-2" width="24" height="24" />
-                    <span>{{ token.chain }}</span>
-                </div>
-            </td>
-            <td>{{ token.symbol }}</td>
-            <td>{{ token.name }}</td>
-            <td class="text-truncate" style="max-width: 150px;">{{ token.address }}</td>
-            <td>{{ token.total_supply|int|format(',d') }}</td>
-            <td>${{ token.current_price }}</td>
-            <td>
-                {% for dex in token.listed_on %}
-                <span class="badge bg-info">{{ dex }}</span>
-                {% else %}
-                <span class="badge bg-secondary">Not Listed</span>
-                {% endfor %}
-            </td>
-            <td>{{ token.created_at.strftime('%Y-%m-%d') }}</td>
-            <td>
-                <div class="btn-group">
-                    <button class="btn btn-sm btn-outline-primary list-token-btn" data-token-id="{{ token.id }}">
-                        <i class="fas fa-plus-circle"></i>
-                    </button>
-                    <a href="https://{{ token.chain }}scan.io/address/{{ token.address }}" 
-                       target="_blank" class="btn btn-sm btn-outline-info">
-                        <i class="fas fa-external-link-alt"></i>
-                    </a>
-                    <button class="btn btn-sm btn-outline-secondary token-details-btn" data-token-id="{{ token.id }}">
-                        <i class="fas fa-info-circle"></i>
-                    </button>
-                    <button class="btn btn-sm btn-outline-danger delete-token-btn" data-token-id="{{ token.id }}">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </div>
-            </td>
-        </tr>
-        {% else %}
-        <tr>
-            <td colspan="9" class="text-center py-4">
-                <i class="fas fa-coins fa-2x text-muted mb-3"></i>
-                <h5>No tokens deployed yet</h5>
-                <p class="text-muted">Deploy a new token to get started</p>
-                <button class="btn btn-primary mt-2" data-bs-toggle="modal" data-bs-target="#deployTokenModal">
-                    <i class="fas fa-plus me-2"></i> Deploy New Token
-                </button>
-            </td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
-</div>
-</div>
-</div>
-
-<!-- Deploy Token Modal -->
-<div class="modal fade" id="deployTokenModal" tabindex="-1" aria-labelledby="deployTokenModalLabel" aria-hidden="true">
-<div class="modal-dialog modal-lg">
-<div class="modal-content">
-<div class="modal-header">
-    <h5 class="modal-title" id="deployTokenModalLabel">Deploy New Token</h5>
-    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-</div>
-<div class="modal-body">
-    <form id="deploy-token-form">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token else '' }}">
-        
-        <div class="row">
-            <div class="col-md-6">
-                <div class="mb-3">
-                    <label for="token-name" class="form-label">Token Name</label>
-                    <input type="text" class="form-control" id="token-name" name="name" required placeholder="My Token">
-                </div>
-                <div class="mb-3">
-                    <label for="token-symbol" class="form-label">Token Symbol</label>
-                    <input type="text" class="form-control" id="token-symbol" name="symbol" required placeholder="MTK" maxlength="10">
-                </div>
-                <div class="mb-3">
-                    <label for="token-supply" class="form-label">Total Supply</label>
-                    <div class="input-group">
-                        <input type="number" class="form-control" id="token-supply" name="total_supply" min="1" required placeholder="1000000">
-                        <span class="input-group-text">tokens</span>
-                    </div>
-                </div>
-                <div class="mb-3">
-                    <label for="token-decimals" class="form-label">Decimals</label>
-                    <input type="number" class="form-control" id="token-decimals" name="decimals" min="0" max="18" value="18" required>
-                    <div class="form-text">Number of decimal places (standard is 18)</div>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="mb-3">
-                    <label for="token-chain" class="form-label">Chain</label>
-                    <select class="form-select" id="token-chain" name="chain" required>
-                        <option value="" selected disabled>Choose a chain...</option>
-                        {% for chain in tokens|map(attribute='chain')|unique %}
-                        <option value="{{ chain }}">{{ chain }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="mb-3">
-                    <label for="token-fee" class="form-label">Transfer Fee (%)</label>
-                    <div class="input-group">
-                        <input type="number" class="form-control" id="token-fee" name="transfer_fee_percent" min="0" max="10" value="0" step="0.1" required>
-                        <span class="input-group-text">%</span>
-                    </div>
-                    <div class="form-text">Fee charged on each transfer (0-10%)</div>
-                </div>
-                <div class="mb-3">
-                    <label for="token-rewards" class="form-label">Holder Rewards (%)</label>
-                    <div class="input-group">
-                        <input type="number" class="form-control" id="token-rewards" name="holder_rewards_percent" min="0" max="100" value="0" step="1" required>
-                        <span class="input-group-text">%</span>
-                    </div>
-                    <div class="form-text">Percentage of fees distributed to token holders</div>
-                </div>
-                <div class="form-check mb-3">
-                    <input class="form-check-input" type="checkbox" id="token-list-dex" name="list_on_dex">
-                    <label class="form-check-label" for="token-list-dex">
-                        List on DEX after deployment
-                    </label>
-                </div>
-            </div>
-        </div>
-        
-        <div id="dex-listing-fields" style="display: none;">
-            <hr>
-            <h6>DEX Listing Details</h6>
-            <div class="row">
-                <div class="col-md-6">
-                    <div class="mb-3">
-                        <label for="token-dex" class="form-label">DEX</label>
-                        <select class="form-select" id="token-dex" name="dex">
-                            <option value="uniswap">Uniswap</option>
-                            <option value="sushiswap">SushiSwap</option>
-                            <option value="pancakeswap">PancakeSwap</option>
-                            <option value="quickswap">QuickSwap</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="mb-3">
-                        <label for="token-ratio" class="form-label">Initial Token Ratio</label>
-                        <div class="input-group">
-                            <input type="number" class="form-control" id="token-ratio" name="token_ratio" min="1" value="1000">
-                            <span class="input-group-text">tokens per ETH</span>
-                        </div>
-                        <div class="form-text">How many tokens per ETH/BNB/etc.</div>
-                    </div>
-                </div>
-            </div>
-            <div class="mb-3">
-                <label for="token-liquidity" class="form-label">Liquidity Amount</label>
-                <div class="input-group">
-                    <input type="number" class="form-control" id="token-liquidity" name="liquidity_amount" min="0.01" step="0.01" value="0.5">
-                    <span class="input-group-text">ETH</span>
-                </div>
-                <div class="form-text">Amount of ETH/BNB/etc. to add as liquidity</div>
-            </div>
-        </div>
-    </form>
-</div>
-<div class="modal-footer">
-    <button type="button" class="btn btn-secondary" + value;
-                }
-            }
-        }
-    },
-    plugins: {
-        tooltip: {
-            callbacks: {
-                label: function(context) {
-                    return 'Price: {% extends "base.html" %}
-
-{% block title %}Tokens - PME-X{% endblock %}
-
-{% block header %}Token Management{% endblock %}
-
-{% block content %}
-<!-- Token Summary Cards -->
-<div class="row mb-4">
-<div class="col-md-3">
-<div class="card bg-primary text-white h-100">
-<div class="card-body">
-    <div class="d-flex justify-content-between align-items-center">
-        <div>
-            <h6 class="card-title">Total Tokens</h6>
-            <h3 class="mb-0">{{ tokens|length }}</h3>
-        </div>
-        <i class="fas fa-coins fa-2x"></i>
-    </div>
-</div>
-</div>
-</div>
-
-<div class="col-md-3">
-<div class="card bg-success text-white h-100">
-<div class="card-body">
-    <div class="d-flex justify-content-between align-items-center">
-        <div>
-            <h6 class="card-title">Total Value</h6>
-            <h3 class="mb-0">${{ tokens|sum(attribute='current_price')|round(2) }}</h3>
-        </div>
-        <i class="fas fa-dollar-sign fa-2x"></i>
-    </div>
-</div>
-</div>
-</div>
-
-<div class="col-md-3">
-<div class="card bg-info text-white h-100">
-<div class="card-body">
-    <div class="d-flex justify-content-between align-items-center">
-        <div>
-            <h6 class="card-title">DEX Listings</h6>
-            {% set total_listings = tokens|sum(attribute='listed_on|length') %}
-            <h3 class="mb-0">{{ total_listings }}</h3>
-        </div>
-        <i class="fas fa-exchange-alt fa-2x"></i>
-    </div>
-</div>
-</div>
-</div>
-
-<div class="col-md-3">
-<div class="card bg-warning text-white h-100">
-<div class="card-body">
-    <div class="d-flex justify-content-between align-items-center">
-        <div>
-            <h6 class="card-title">Unique Chains</h6>
-            <h3 class="mb-0">{{ tokens|map(attribute='chain')|unique|list|length }}</h3>
-        </div>
-        <i class="fas fa-link fa-2x"></i>
-    </div>
-</div>
-</div>
-</div>
-</div>
-
-<!-- Token Actions -->
-<div class="row mb-4">
-<div class="col-md-12">
-<div class="card">
-<div class="card-body">
-    <div class="d-flex justify-content-between">
-        <div>
-            <button class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#deployTokenModal">
-                <i class="fas fa-plus me-2"></i> Deploy New Token
-            </button>
-            <button class="btn btn-success me-2" id="refreshTokensBtn">
-                <i class="fas fa-sync-alt me-2"></i> Refresh Data
-            </button>
-        </div>
-        <div class="d-flex">
-            <div class="input-group">
-                <span class="input-group-text">Chain</span>
-                <select class="form-select" id="chainFilter">
-                    <option value="all">All Chains</option>
-                    {% for chain in tokens|map(attribute='chain')|unique %}
-                    <option value="{{ chain }}">{{ chain }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="input-group ms-2">
-                <input type="text" class="form-control" placeholder="Search..." id="tokenSearch">
-                <button class="btn btn-outline-secondary" type="button">
-                    <i class="fas fa-search"></i>
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-</div>
-</div>
-</div>
-
-<!-- Token List -->
-<div class="card">
-<div class="card-header d-flex justify-content-between align-items-center">
-<h5 class="mb-0">Deployed Tokens</h5>
-<div class="btn-group">
-<button class="btn btn-sm btn-outline-primary active" id="viewCards">
-    <i class="fas fa-th-large"></i>
-</button>
-<button class="btn btn-sm btn-outline-primary" id="viewTable">
-    <i class="fas fa-list"></i>
-</button>
-</div>
-</div>
-<div class="card-body">
-<!-- Card View -->
-<div class="row g-3" id="tokenCards">
-{% for token in tokens %}
-<div class="col-md-4 token-item" data-chain="{{ token.chain }}">
-    <div class="card h-100">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <div class="d-flex align-items-center">
-                <img src="{{ url_for('static', filename='img/chains/' ~ token.chain ~ '.png') }}" 
-                     onerror="this.src='{{ url_for('static', filename='img/chains/default.png') }}';"
-                     alt="{{ token.chain }}" class="me-2" width="24" height="24" />
-                <h6 class="mb-0">{{ token.chain }}</h6>
-            </div>
-            <span class="badge bg-primary">{{ token.created_at.strftime('%Y-%m-%d') }}</span>
-        </div>
-        <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5 class="mb-0">{{ token.symbol }}</h5>
-                <span class="badge {% if token.current_price > 0 %}bg-success{% else %}bg-secondary{% endif %}">
-                    ${{ token.current_price }}
-                </span>
-            </div>
-            <p class="card-text text-truncate mb-2">{{ token.name }}</p>
-            
-            <div class="mb-3">
-                <small class="text-muted">Address</small>
-                <div class="input-group input-group-sm">
-                    <input type="text" class="form-control" value="{{ token.address }}" readonly>
-                    <button class="btn btn-outline-secondary copy-address-btn" type="button" data-address="{{ token.address }}">
-                        <i class="fas fa-copy"></i>
-                    </button>
-                </div>
-            </div>
-            
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <div>
-                    <small class="text-muted">Total Supply</small>
-                    <p class="mb-0">{{ token.total_supply|int|format(',d') }}</p>
-                </div>
-                <div>
-                    <small class="text-muted">Listings</small>
-                    <p class="mb-0">{{ token.listed_on|length }}</p>
-                </div>
-            </div>
-            
-            <div class="mb-3">
-                <small class="text-muted">Listed On</small>
-                <div class="d-flex flex-wrap gap-1 mt-1">
-                    {% for dex in token.listed_on %}
-                    <span class="badge bg-info">{{ dex }}</span>
-                    {% else %}
-                    <span class="badge bg-secondary">Not Listed</span>
-                    {% endfor %}
-                </div>
-            </div>
-        </div>
-        <div class="card-footer d-flex justify-content-between">
-            <button class="btn btn-sm btn-outline-primary list-token-btn" data-token-id="{{ token.id }}">
-                <i class="fas fa-plus-circle me-1"></i> List on DEX
-            </button>
-            <div class="btn-group">
-                <a href="https://{{ token.chain }}scan.io/address/{{ token.address }}" 
-                   target="_blank" class="btn btn-sm btn-outline-info">
-                    <i class="fas fa-external-link-alt"></i>
-                </a>
-                <button class="btn btn-sm btn-outline-secondary token-details-btn" data-token-id="{{ token.id }}">
-                    <i class="fas fa-info-circle"></i>
-                </button>
-                <button class="btn btn-sm btn-outline-danger delete-token-btn" data-token-id="{{ token.id }}">
-                    <i class="fas fa-trash"></i>
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-{% else %}
-<div class="col-12 text-center py-5">
-    <i class="fas fa-coins fa-3x text-muted mb-3"></i>
-    <h5>No tokens deployed yet</h5>
-    <p class="text-muted">Deploy a new token to get started</p>
-    <button class="btn btn-primary mt-2" data-bs-toggle="modal" data-bs-target="#deployTokenModal">
-        <i class="fas fa-plus me-2"></i> Deploy New Token
-    </button>
-</div>
-{% endfor %}
-</div>
-
-<!-- Table View (initially hidden) -->
-<div class="table-responsive" id="tokenTable" style="display: none;">
-<table class="table table-hover">
-    <thead>
-        <tr>
-            <th>Chain</th>
-            <th>Symbol</th>
-            <th>Name</th>
-            <th>Address</th>
-            <th>Total Supply</th>
-            <th>Price</th>
-            <th>Listings</th>
-            <th>Created</th>
-            <th>Actions</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for token in tokens %}
-        <tr class="token-item" data-chain="{{ token.chain }}">
-            <td>
-                <div class="d-flex align-items-center">
-                    <img src="{{ url_for('static', filename='img/chains/' ~ token.chain ~ '.png') }}" 
-                         onerror="this.src='{{ url_for('static', filename='img/chains/default.png') }}';"
-                         alt="{{ token.chain }}" class="me-2" width="24" height="24" />
-                    <span>{{ token.chain }}</span>
-                </div>
-            </td>
-            <td>{{ token.symbol }}</td>
-            <td>{{ token.name }}</td>
-            <td class="text-truncate" style="max-width: 150px;">{{ token.address }}</td>
-            <td>{{ token.total_supply|int|format(',d') }}</td>
-            <td>${{ token.current_price }}</td>
-            <td>
-                {% for dex in token.listed_on %}
-                <span class="badge bg-info">{{ dex }}</span>
-                {% else %}
-                <span class="badge bg-secondary">Not Listed</span>
-                {% endfor %}
-            </td>
-            <td>{{ token.created_at.strftime('%Y-%m-%d') }}</td>
-            <td>
-                <div class="btn-group">
-                    <button class="btn btn-sm btn-outline-primary list-token-btn" data-token-id="{{ token.id }}">
-                        <i class="fas fa-plus-circle"></i>
-                    </button>
-                    <a href="https://{{ token.chain }}scan.io/address/{{ token.address }}" 
-                       target="_blank" class="btn btn-sm btn-outline-info">
-                        <i class="fas fa-external-link-alt"></i>
-                    </a>
-                    <button class="btn btn-sm btn-outline-secondary token-details-btn" data-token-id="{{ token.id }}">
-                        <i class="fas fa-info-circle"></i>
-                    </button>
-                    <button class="btn btn-sm btn-outline-danger delete-token-btn" data-token-id="{{ token.id }}">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </div>
-            </td>
-        </tr>
-        {% else %}
-        <tr>
-            <td colspan="9" class="text-center py-4">
-                <i class="fas fa-coins fa-2x text-muted mb-3"></i>
-                <h5>No tokens deployed yet</h5>
-                <p class="text-muted">Deploy a new token to get started</p>
-                <button class="btn btn-primary mt-2" data-bs-toggle="modal" data-bs-target="#deployTokenModal">
-                    <i class="fas fa-plus me-2"></i> Deploy New Token
-                </button>
-            </td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
-</div>
-</div>
-</div>
-
-<!-- Deploy Token Modal -->
-<div class="modal fade" id="deployTokenModal" tabindex="-1" aria-labelledby="deployTokenModalLabel" aria-hidden="true">
-<div class="modal-dialog modal-lg">
-<div class="modal-content">
-<div class="modal-header">
-    <h5 class="modal-title" id="deployTokenModalLabel">Deploy New Token</h5>
-    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-</div>
-<div class="modal-body">
-    <form id="deploy-token-form">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token else '' }}">
-        
-        <div class="row">
-            <div class="col-md-6">
-                <div class="mb-3">
-                    <label for="token-name" class="form-label">Token Name</label>
-                    <input type="text" class="form-control" id="token-name" name="name" required placeholder="My Token">
-                </div>
-                <div class="mb-3">
-                    <label for="token-symbol" class="form-label">Token Symbol</label>
-                    <input type="text" class="form-control" id="token-symbol" name="symbol" required placeholder="MTK" maxlength="10">
-                </div>
-                <div class="mb-3">
-                    <label for="token-supply" class="form-label">Total Supply</label>
-                    <div class="input-group">
-                        <input type="number" class="form-control" id="token-supply" name="total_supply" min="1" required placeholder="1000000">
-                        <span class="input-group-text">tokens</span>
-                    </div>
-                </div>
-                <div class="mb-3">
-                    <label for="token-decimals" class="form-label">Decimals</label>
-                    <input type="number" class="form-control" id="token-decimals" name="decimals" min="0" max="18" value="18" required>
-                    <div class="form-text">Number of decimal places (standard is 18)</div>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="mb-3">
-                    <label for="token-chain" class="form-label">Chain</label>
-                    <select class="form-select" id="token-chain" name="chain" required>
-                        <option value="" selected disabled>Choose a chain...</option>
-                        {% for chain in tokens|map(attribute='chain')|unique %}
-                        <option value="{{ chain }}">{{ chain }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="mb-3">
-                    <label for="token-fee" class="form-label">Transfer Fee (%)</label>
-                    <div class="input-group">
-                        <input type="number" class="form-control" id="token-fee" name="transfer_fee_percent" min="0" max="10" value="0" step="0.1" required>
-                        <span class="input-group-text">%</span>
-                    </div>
-                    <div class="form-text">Fee charged on each transfer (0-10%)</div>
-                </div>
-                <div class="mb-3">
-                    <label for="token-rewards" class="form-label">Holder Rewards (%)</label>
-                    <div class="input-group">
-                        <input type="number" class="form-control" id="token-rewards" name="holder_rewards_percent" min="0" max="100" value="0" step="1" required>
-                        <span class="input-group-text">%</span>
-                    </div>
-                    <div class="form-text">Percentage of fees distributed to token holders</div>
-                </div>
-                <div class="form-check mb-3">
-                    <input class="form-check-input" type="checkbox" id="token-list-dex" name="list_on_dex">
-                    <label class="form-check-label" for="token-list-dex">
-                        List on DEX after deployment
-                    </label>
-                </div>
-            </div>
-        </div>
-        
-        <div id="dex-listing-fields" style="display: none;">
-            <hr>
-            <h6>DEX Listing Details</h6>
-            <div class="row">
-                <div class="col-md-6">
-                    <div class="mb-3">
-                        <label for="token-dex" class="form-label">DEX</label>
-                        <select class="form-select" id="token-dex" name="dex">
-                            <option value="uniswap">Uniswap</option>
-                            <option value="sushiswap">SushiSwap</option>
-                            <option value="pancakeswap">PancakeSwap</option>
-                            <option value="quickswap">QuickSwap</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="mb-3">
-                        <label for="token-ratio" class="form-label">Initial Token Ratio</label>
-                        <div class="input-group">
-                            <input type="number" class="form-control" id="token-ratio" name="token_ratio" min="1" value="1000">
-                            <span class="input-group-text">tokens per ETH</span>
-                        </div>
-                        <div class="form-text">How many tokens per ETH/BNB/etc.</div>
-                    </div>
-                </div>
-            </div>
-            <div class="mb-3">
-                <label for="token-liquidity" class="form-label">Liquidity Amount</label>
-                <div class="input-group">
-                    <input type="number" class="form-control" id="token-liquidity" name="liquidity_amount" min="0.01" step="0.01" value="0.5">
-                    <span class="input-group-text">ETH</span>
-                </div>
-                <div class="form-text">Amount of ETH/BNB/etc. to add as liquidity</div>
-            </div>
-        </div>
-    </form>
-</div>
-<div class="modal-footer">
-    <button type="button" class="btn btn-secondary" + context.raw;
-                }
-            }
-        }
-    }
-}
-});
-}
-
-// Deploy token functionality
-document.getElementById('deploy-token-btn').addEventListener('click', function() {
-const form = document.getElementById('deploy-token-form');
-
-// Simple validation
-let isValid = true;
-
-form.querySelectorAll('[required]').forEach(input => {
-if (!input.value.trim()) {
-    input.classList.add('is-invalid');
-    isValid = false;
-} else {
-    input.classList.remove('is-invalid');
-}
-});
-
-if (!isValid) {
-return;
-}
-
-// Get form data
-const tokenName = document.getElementById('token-name').value;
-const tokenSymbol = document.getElementById('token-symbol').value;
-const tokenChain = document.getElementById('token-chain').value;
-
-// Show loading state
-this.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Deploying...';
-this.disabled = true;
-
-// Simulate API call with timeout
-setTimeout(() => {
-// Create mock token address
-const tokenAddress = '0x' + Math.random().toString(16).substr(2, 40);
-
-// Generate token card HTML
-const tokenCard = document.createElement('div');
-tokenCard.className = 'col-md-4 token-item';
-tokenCard.setAttribute('data-chain', tokenChain);
-
-tokenCard.innerHTML = `
-    <div class="card h-100">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <div class="d-flex align-items-center">
-                <img src="{{ url_for('static', filename='img/chains/') }}${tokenChain}.png" 
-                     onerror="this.src='{{ url_for('static', filename='img/chains/default.png') }}';"
-                     alt="${tokenChain}" class="me-2" width="24" height="24" />
-                <h6 class="mb-0">${tokenChain}</h6>
-            </div>
-            <span class="badge bg-primary">${new Date().toISOString().split('T')[0]}</span>
-        </div>
-        <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5 class="mb-0">${tokenSymbol}</h5>
-                <span class="badge bg-secondary">$0.00</span>
-            </div>
-            <p class="card-text text-truncate mb-2">${tokenName}</p>
-            
-            <div class="mb-3">
-                <small class="text-muted">Address</small>
-                <div class="input-group input-group-sm">
-                    <input type="text" class="form-control" value="${tokenAddress}" readonly>
-                    <button class="btn btn-outline-secondary copy-address-btn" type="button" data-address="${tokenAddress}">
-                        <i class="fas fa-copy"></i>
-                    </button>
-                </div>
-            </div>
-            
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <div>
-                    <small class="text-muted">Total Supply</small>
-                    <p class="mb-0">${parseInt(document.getElementById('token-supply').value).toLocaleString()}</p>
-                </div>
-                <div>
-                    <small class="text-muted">Listings</small>
-                    <p class="mb-0">0</p>
-                </div>
-            </div>
-            
-            <div class="mb-3">
-                <small class="text-muted">Listed On</small>
-                <div class="d-flex flex-wrap gap-1 mt-1">
-                    <span class="badge bg-secondary">Not Listed</span>
-                </div>
-            </div>
-        </div>
-        <div class="card-footer d-flex justify-content-between">
-            <button class="btn btn-sm btn-outline-primary list-token-btn" data-token-id="new-${Date.now()}">
-                <i class="fas fa-plus-circle me-1"></i> List on DEX
-            </button>
-            <div class="btn-group">
-                <a href="https://${tokenChain}scan.io/address/${tokenAddress}" 
-                   target="_blank" class="btn btn-sm btn-outline-info">
-                    <i class="fas fa-external-link-alt"></i>
-                </a>
-                <button class="btn btn-sm btn-outline-secondary token-details-btn" data-token-id="new-${Date.now()}">
-                    <i class="fas fa-info-circle"></i>
-                </button>
-                <button class="btn btn-sm btn-outline-danger delete-token-btn" data-token-id="new-${Date.now()}">
-                    <i class="fas fa-trash"></i>
-                </button>
-            </div>
-        </div>
-    </div>
-`;
-
-// Also add to table view
-const tokenRow = document.createElement('tr');
-tokenRow.className = 'token-item';
-tokenRow.setAttribute('data-chain', tokenChain);
-
-tokenRow.innerHTML = `
-    <td>
-        <div class="d-flex align-items-center">
-            <img src="{{ url_for('static', filename='img/chains/') }}${tokenChain}.png" 
-                 onerror="this.src='{{ url_for('static', filename='img/chains/default.png') }}';"
-                 alt="${tokenChain}" class="me-2" width="24" height="24" />
-            <span>${tokenChain}</span>
-        </div>
-    </td>
-    <td>${tokenSymbol}</td>
-    <td>${tokenName}</td>
-    <td class="text-truncate" style="max-width: 150px;">${tokenAddress}</td>
-    <td>${parseInt(document.getElementById('token-supply').value).toLocaleString()}</t{% extends "base.html" %}
-
-{% block title %}Tokens - PME-X{% endblock %}
-
-{% block header %}Token Management{% endblock %}
-
-{% block content %}
-<!-- Token Summary Cards -->
-<div class="row mb-4">
-<div class="col-md-3">
-<div class="card bg-primary text-white h-100">
-<div class="card-body">
-    <div class="d-flex justify-content-between align-items-center">
-        <div>
-            <h6 class="card-title">Total Tokens</h6>
-            <h3 class="mb-0">{{ tokens|length }}</h3>
-        </div>
-        <i class="fas fa-coins fa-2x"></i>
-    </div>
-</div>
-</div>
-</div>
-
-<div class="col-md-3">
-<div class="card bg-success text-white h-100">
-<div class="card-body">
-    <div class="d-flex justify-content-between align-items-center">
-        <div>
-            <h6 class="card-title">Total Value</h6>
-            <h3 class="mb-0">${{ tokens|sum(attribute='current_price')|round(2) }}</h3>
-        </div>
-        <i class="fas fa-dollar-sign fa-2x"></i>
-    </div>
-</div>
-</div>
-</div>
-
-<div class="col-md-3">
-<div class="card bg-info text-white h-100">
-<div class="card-body">
-    <div class="d-flex justify-content-between align-items-center">
-        <div>
-            <h6 class="card-title">DEX Listings</h6>
-            {% set total_listings = tokens|sum(attribute='listed_on|length') %}
-            <h3 class="mb-0">{{ total_listings }}</h3>
-        </div>
-        <i class="fas fa-exchange-alt fa-2x"></i>
-    </div>
-</div>
-</div>
-</div>
-
-<div class="col-md-3">
-<div class="card bg-warning text-white h-100">
-<div class="card-body">
-    <div class="d-flex justify-content-between align-items-center">
-        <div>
-            <h6 class="card-title">Unique Chains</h6>
-            <h3 class="mb-0">{{ tokens|map(attribute='chain')|unique|list|length }}</h3>
-        </div>
-        <i class="fas fa-link fa-2x"></i>
-    </div>
-</div>
-</div>
-</div>
-</div>
-
-<!-- Token Actions -->
-<div class="row mb-4">
-<div class="col-md-12">
-<div class="card">
-<div class="card-body">
-    <div class="d-flex justify-content-between">
-        <div>
-            <button class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#deployTokenModal">
-                <i class="fas fa-plus me-2"></i> Deploy New Token
-            </button>
-            <button class="btn btn-success me-2" id="refreshTokensBtn">
-                <i class="fas fa-sync-alt me-2"></i> Refresh Data
-            </button>
-        </div>
-        <div class="d-flex">
-            <div class="input-group">
-                <span class="input-group-text">Chain</span>
-                <select class="form-select" id="chainFilter">
-                    <option value="all">All Chains</option>
-                    {% for chain in tokens|map(attribute='chain')|unique %}
-                    <option value="{{ chain }}">{{ chain }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="input-group ms-2">
-                <input type="text" class="form-control" placeholder="Search..." id="tokenSearch">
-                <button class="btn btn-outline-secondary" type="button">
-                    <i class="fas fa-search"></i>
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-</div>
-</div>
-</div>
-
-<!-- Token List -->
-<div class="card">
-<div class="card-header d-flex justify-content-between align-items-center">
-<h5 class="mb-0">Deployed Tokens</h5>
-<div class="btn-group">
-<button class="btn btn-sm btn-outline-primary active" id="viewCards">
-    <i class="fas fa-th-large"></i>
-</button>
-<button class="btn btn-sm btn-outline-primary" id="viewTable">
-    <i class="fas fa-list"></i>
-</button>
-</div>
-</div>
-<div class="card-body">
-<!-- Card View -->
-<div class="row g-3" id="tokenCards">
-{% for token in tokens %}
-<div class="col-md-4 token-item" data-chain="{{ token.chain }}">
-    <div class="card h-100">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <div class="d-flex align-items-center">
-                <img src="{{ url_for('static', filename='img/chains/' ~ token.chain ~ '.png') }}" 
-                     onerror="this.src='{{ url_for('static', filename='img/chains/default.png') }}';"
-                     alt="{{ token.chain }}" class="me-2" width="24" height="24" />
-                <h6 class="mb-0">{{ token.chain }}</h6>
-            </div>
-            <span class="badge bg-primary">{{ token.created_at.strftime('%Y-%m-%d') }}</span>
-        </div>
-        <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5 class="mb-0">{{ token.symbol }}</h5>
-                <span class="badge {% if token.current_price > 0 %}bg-success{% else %}bg-secondary{% endif %}">
-                    ${{ token.current_price }}
-                </span>
-            </div>
-            <p class="card-text text-truncate mb-2">{{ token.name }}</p>
-            
-            <div class="mb-3">
-                <small class="text-muted">Address</small>
-                <div class="input-group input-group-sm">
-                    <input type="text" class="form-control" value="{{ token.address }}" readonly>
-                    <button class="btn btn-outline-secondary copy-address-btn" type="button" data-address="{{ token.address }}">
-                        <i class="fas fa-copy"></i>
-                    </button>
-                </div>
-            </div>
-            
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <div>
-                    <small class="text-muted">Total Supply</small>
-                    <p class="mb-0">{{ token.total_supply|int|format(',d') }}</p>
-                </div>
-                <div>
-                    <small class="text-muted">Listings</small>
-                    <p class="mb-0">{{ token.listed_on|length }}</p>
-                </div>
-            </div>
-            
-            <div class="mb-3">
-                <small class="text-muted">Listed On</small>
-                <div class="d-flex flex-wrap gap-1 mt-1">
-                    {% for dex in token.listed_on %}
-                    <span class="badge bg-info">{{ dex }}</span>
-                    {% else %}
-                    <span class="badge bg-secondary">Not Listed</span>
-                    {% endfor %}
-                </div>
-            </div>
-        </div>
-        <div class="card-footer d-flex justify-content-between">
-            <button class="btn btn-sm btn-outline-primary list-token-btn" data-token-id="{{ token.id }}">
-                <i class="fas fa-plus-circle me-1"></i> List on DEX
-            </button>
-            <div class="btn-group">
-                <a href="https://{{ token.chain }}scan.io/address/{{ token.address }}" 
-                   target="_blank" class="btn btn-sm btn-outline-info">
-                    <i class="fas fa-external-link-alt"></i>
-                </a>
-                <button class="btn btn-sm btn-outline-secondary token-details-btn" data-token-id="{{ token.id }}">
-                    <i class="fas fa-info-circle"></i>
-                </button>
-                <button class="btn btn-sm btn-outline-danger delete-token-btn" data-token-id="{{ token.id }}">
-                    <i class="fas fa-trash"></i>
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-{% else %}
-<div class="col-12 text-center py-5">
-    <i class="fas fa-coins fa-3x text-muted mb-3"></i>
-    <h5>No tokens deployed yet</h5>
-    <p class="text-muted">Deploy a new token to get started</p>
-    <button class="btn btn-primary mt-2" data-bs-toggle="modal" data-bs-target="#deployTokenModal">
-        <i class="fas fa-plus me-2"></i> Deploy New Token
-    </button>
-</div>
-{% endfor %}
-</div>
-
-<!-- Table View (initially hidden) -->
-<div class="table-responsive" id="tokenTable" style="display: none;">
-<table class="table table-hover">
-    <thead>
-        <tr>
-            <th>Chain</th>
-            <th>Symbol</th>
-            <th>Name</th>
-            <th>Address</th>
-            <th>Total Supply</th>
-            <th>Price</th>
-            <th>Listings</th>
-            <th>Created</th>
-            <th>Actions</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for token in tokens %}
-        <tr class="token-item" data-chain="{{ token.chain }}">
-            <td>
-                <div class="d-flex align-items-center">
-                    <img src="{{ url_for('static', filename='img/chains/' ~ token.chain ~ '.png') }}" 
-                         onerror="this.src='{{ url_for('static', filename='img/chains/default.png') }}';"
-                         alt="{{ token.chain }}" class="me-2" width="24" height="24" />
-                    <span>{{ token.chain }}</span>
-                </div>
-            </td>
-            <td>{{ token.symbol }}</td>
-            <td>{{ token.name }}</td>
-            <td class="text-truncate" style="max-width: 150px;">{{ token.address }}</td>
-            <td>{{ token.total_supply|int|format(',d') }}</td>
-            <td>${{ token.current_price }}</td>
-            <td>
-                {% for dex in token.listed_on %}
-                <span class="badge bg-info">{{ dex }}</span>
-                {% else %}
-                <span class="badge bg-secondary">Not Listed</span>
-                {% endfor %}
-            </td>
-            <td>{{ token.created_at.strftime('%Y-%m-%d') }}</td>
-            <td>
-                <div class="btn-group">
-                    <button class="btn btn-sm btn-outline-primary list-token-btn" data-token-id="{{ token.id }}">
-                        <i class="fas fa-plus-circle"></i>
-                    </button>
-                    <a href="https://{{ token.chain }}scan.io/address/{{ token.address }}" 
-                       target="_blank" class="btn btn-sm btn-outline-info">
-                        <i class="fas fa-external-link-alt"></i>
-                    </a>
-                    <button class="btn btn-sm btn-outline-secondary token-details-btn" data-token-id="{{ token.id }}">
-                        <i class="fas fa-info-circle"></i>
-                    </button>
-                    <button class="btn btn-sm btn-outline-danger delete-token-btn" data-token-id="{{ token.id }}">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </div>
-            </td>
-        </tr>
-        {% else %}
-        <tr>
-            <td colspan="9" class="text-center py-4">
-                <i class="fas fa-coins fa-2x text-muted mb-3"></i>
-                <h5>No tokens deployed yet</h5>
-                <p class="text-muted">Deploy a new token to get started</p>
-                <button class="btn btn-primary mt-2" data-bs-toggle="modal" data-bs-target="#deployTokenModal">
-                    <i class="fas fa-plus me-2"></i> Deploy New Token
-                </button>
-            </td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
-</div>
-</div>
-</div>
-
-<!-- Deploy Token Modal -->
-<div class="modal fade" id="deployTokenModal" tabindex="-1" aria-labelledby="deployTokenModalLabel" aria-hidden="true">
-<div class="modal-dialog modal-lg">
-<div class="modal-content">
-<div class="modal-header">
-    <h5 class="modal-title" id="deployTokenModalLabel">Deploy New Token</h5>
-    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-</div>
-<div class="modal-body">
-    <form id="deploy-token-form">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token else '' }}">
-        
-        <div class="row">
-            <div class="col-md-6">
-                <div class="mb-3">
-                    <label for="token-name" class="form-label">Token Name</label>
-                    <input type="text" class="form-control" id="token-name" name="name" required placeholder="My Token">
-                </div>
-                <div class="mb-3">
-                    <label for="token-symbol" class="form-label">Token Symbol</label>
-                    <input type="text" class="form-control" id="token-symbol" name="symbol" required placeholder="MTK" maxlength="10">
-                </div>
-                <div class="mb-3">
-                    <label for="token-supply" class="form-label">Total Supply</label>
-                    <div class="input-group">
-                        <input type="number" class="form-control" id="token-supply" name="total_supply" min="1" required placeholder="1000000">
-                        <span class="input-group-text">tokens</span>
-                    </div>
-                </div>
-                <div class="mb-3">
-                    <label for="token-decimals" class="form-label">Decimals</label>
-                    <input type="number" class="form-control" id="token-decimals" name="decimals" min="0" max="18" value="18" required>
-                    <div class="form-text">Number of decimal places (standard is 18)</div>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="mb-3">
-                    <label for="token-chain" class="form-label">Chain</label>
-                    <select class="form-select" id="token-chain" name="chain" required>
-                        <option value="" selected disabled>Choose a chain...</option>
-                        {% for chain in tokens|map(attribute='chain')|unique %}
-                        <option value="{{ chain }}">{{ chain }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="mb-3">
-                    <label for="token-fee" class="form-label">Transfer Fee (%)</label>
-                    <div class="input-group">
-                        <input type="number" class="form-control" id="token-fee" name="transfer_fee_percent" min="0" max="10" value="0" step="0.1" required>
-                        <span class="input-group-text">%</span>
-                    </div>
-                    <div class="form-text">Fee charged on each transfer (0-10%)</div>
-                </div>
-                <div class="mb-3">
-                    <label for="token-rewards" class="form-label">Holder Rewards (%)</label>
-                    <div class="input-group">
-                        <input type="number" class="form-control" id="token-rewards" name="holder_rewards_percent" min="0" max="100" value="0" step="1" required>
-                        <span class="input-group-text">%</span>
-                    </div>
-                    <div class="form-text">Percentage of fees distributed to token holders</div>
-                </div>
-                <div class="form-check mb-3">
-                    <input class="form-check-input" type="checkbox" id="token-list-dex" name="list_on_dex">
-                    <label class="form-check-label" for="token-list-dex">
-                        List on DEX after deployment
-                    </label>
-                </div>
-            </div>
-        </div>
-        
-        <div id="dex-listing-fields" style="display: none;">
-            <hr>
-            <h6>DEX Listing Details</h6>
-            <div class="row">
-                <div class="col-md-6">
-                    <div class="mb-3">
-                        <label for="token-dex" class="form-label">DEX</label>
-                        <select class="form-select" id="token-dex" name="dex">
-                            <option value="uniswap">Uniswap</option>
-                            <option value="sushiswap">SushiSwap</option>
-                            <option value="pancakeswap">PancakeSwap</option>
-                            <option value="quickswap">QuickSwap</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="mb-3">
-                        <label for="token-ratio" class="form-label">Initial Token Ratio</label>
-                        <div class="input-group">
-                            <input type="number" class="form-control" id="token-ratio" name="token_ratio" min="1" value="1000">
-                            <span class="input-group-text">tokens per ETH</span>
-                        </div>
-                        <div class="form-text">How many tokens per ETH/BNB/etc.</div>
-                    </div>
-                </div>
-            </div>
-            <div class="mb-3">
-                <label for="token-liquidity" class="form-label">Liquidity Amount</label>
-                <div class="input-group">
-                    <input type="number" class="form-control" id="token-liquidity" name="liquidity_amount" min="0.01" step="0.01" value="0.5">
-                    <span class="input-group-text">ETH</span>
-                </div>
-                <div class="form-text">Amount of ETH/BNB/etc. to add as liquidity</div>
-            </div>
-        </div>
-    </form>
-</div>
-<div class="modal-footer">
-    <button type="button" class="btn btn-secondary"
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
+<script src="{{ url_for('static', filename='js/token-discovery.js') }}"></script>
+{% endblock %}

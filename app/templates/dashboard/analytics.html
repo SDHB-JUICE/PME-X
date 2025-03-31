@@ -1,0 +1,816 @@
+{% extends "base.html" %}
+
+{% block title %}Balance Analytics - PME-X{% endblock %}
+
+{% block header %}Balance Analytics{% endblock %}
+
+{% block content %}
+<!-- Portfolio Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Total Value</h6>
+                        <h3 class="mb-0">${{ total_portfolio_value|round(2) }}</h3>
+                    </div>
+                    <i class="fas fa-wallet fa-2x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-success text-white h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">P&L (30d)</h6>
+                        <h3 class="mb-0">
+                            {% if profit_loss_30d >= 0 %}+{% endif %}${{ profit_loss_30d|round(2) }}
+                            <small>({{ profit_loss_pct_30d|round(2) }}%)</small>
+                        </h3>
+                    </div>
+                    {% if profit_loss_30d >= 0 %}
+                    <i class="fas fa-arrow-up fa-2x"></i>
+                    {% else %}
+                    <i class="fas fa-arrow-down fa-2x"></i>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-info text-white h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Wallets</h6>
+                        <h3 class="mb-0">{{ wallets|length }}</h3>
+                    </div>
+                    <i class="fas fa-wallet fa-2x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-warning text-white h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Unique Tokens</h6>
+                        <h3 class="mb-0">{{ tokens|length }}</h3>
+                    </div>
+                    <i class="fas fa-coins fa-2x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Portfolio Controls -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <button class="btn btn-primary me-2" id="compareWalletsBtn">
+                            <i class="fas fa-balance-scale me-2"></i> Compare Wallets
+                        </button>
+                        <button class="btn btn-success me-2" id="calculateRiskBtn">
+                            <i class="fas fa-shield-alt me-2"></i> Risk Assessment
+                        </button>
+                        <div class="btn-group me-2">
+                            <button class="btn btn-info">
+                                <i class="fas fa-calendar-alt me-2"></i> Time Period
+                            </button>
+                            <button type="button" class="btn btn-info dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false">
+                                <span class="visually-hidden">Toggle Dropdown</span>
+                            </button>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item period-selector" href="#" data-period="24h">24 Hours</a></li>
+                                <li><a class="dropdown-item period-selector" href="#" data-period="7d">7 Days</a></li>
+                                <li><a class="dropdown-item period-selector active" href="#" data-period="30d">30 Days</a></li>
+                                <li><a class="dropdown-item period-selector" href="#" data-period="all">All Time</a></li>
+                            </ul>
+                        </div>
+                        <button class="btn btn-secondary me-2" id="refreshAnalyticsBtn">
+                            <i class="fas fa-sync-alt me-2"></i> Refresh Data
+                        </button>
+                    </div>
+                    <div class="d-flex">
+                        <div class="input-group">
+                            <span class="input-group-text">Wallets</span>
+                            <select class="form-select" id="walletFilter" multiple>
+                                {% for wallet in wallets %}
+                                <option value="{{ wallet.id }}" selected>{{ wallet.address[:10] }}... ({{ wallet.chain }})</option>
+                                {% endfor %}
+                            </select>
+                            <button class="btn btn-outline-secondary" type="button" id="applyWalletFilterBtn">
+                                <i class="fas fa-filter"></i> Apply
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Portfolio Overview -->
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="mb-0">Portfolio Value Over Time</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="portfolioValueChart" height="300"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="mb-0">Asset Allocation</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="assetAllocationChart" height="300"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Chain Distribution & Token Performance -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="mb-0">Chain Distribution</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="chainDistributionChart" height="250"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-8">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Top Performing Tokens</h5>
+                <div class="btn-group">
+                    <button type="button" class="btn btn-sm btn-outline-primary active token-sort-btn" data-sort="value">Value</button>
+                    <button type="button" class="btn btn-sm btn-outline-primary token-sort-btn" data-sort="change">% Change</button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table" id="tokenPerformanceTable">
+                        <thead>
+                            <tr>
+                                <th>Token</th>
+                                <th>Balance</th>
+                                <th>Current Price</th>
+                                <th>Value</th>
+                                <th>24h Change</th>
+                                <th>7d Change</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for token in top_tokens %}
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <img src="{{ token.logo_url or url_for('static', filename='img/tokens/default.jpeg') }}" 
+                                             onerror="this.src='{{ url_for('static', filename='img/tokens/default.jpeg') }}';"
+                                             alt="{{ token.symbol }}" class="me-2" width="24" height="24" />
+                                        <div>
+                                            <div>{{ token.symbol }}</div>
+                                            <small class="text-muted">{{ token.name }}</small>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>{{ token.balance|round(4) }}</td>
+                                <td>${{ token.current_price|round(4) }}</td>
+                                <td>${{ token.usd_value|round(2) }}</td>
+                                <td>
+                                    <span class="badge {% if token.price_24h_change > 0 %}bg-success{% elif token.price_24h_change < 0 %}bg-danger{% else %}bg-secondary{% endif %}">
+                                        {% if token.price_24h_change > 0 %}+{% endif %}{{ token.price_24h_change|round(2) }}%
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="badge {% if token.price_7d_change > 0 %}bg-success{% elif token.price_7d_change < 0 %}bg-danger{% else %}bg-secondary{% endif %}">
+                                        {% if token.price_7d_change > 0 %}+{% endif %}{{ token.price_7d_change|round(2) }}%
+                                    </span>
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary view-token-chart-btn" data-token-id="{{ token.id }}">
+                                        <i class="fas fa-chart-line"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="7" class="text-center py-3">
+                                    <p class="text-muted">No token data available</p>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Wallet Performance -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">Wallet Performance</h5>
+    </div>
+    <div class="card-body">
+        <div class="row" id="walletPerformanceCards">
+            {% for wallet in wallets %}
+            <div class="col-md-4 mb-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="mb-0">{{ wallet.address[:10] }}...</h6>
+                            <span class="badge bg-info">{{ wallet.chain }}</span>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <canvas id="wallet-chart-{{ wallet.id }}" height="150"></canvas>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <small class="text-muted">Current Value</small>
+                                <p class="mb-0">${{ wallet.usd_balance|round(2) }}</p>
+                            </div>
+                            <div>
+                                <small class="text-muted">30d Change</small>
+                                <p class="mb-0 {% if wallet.change_30d >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                    {% if wallet.change_30d >= 0 %}+{% endif %}{{ wallet.change_30d|round(2) }}%
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <hr>
+                        
+                        <div class="d-flex justify-content-between">
+                            <button class="btn btn-sm btn-outline-primary view-wallet-details-btn" data-wallet-id="{{ wallet.id }}">
+                                <i class="fas fa-chart-line me-1"></i> Details
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary view-wallet-risk-btn" data-wallet-id="{{ wallet.id }}">
+                                <i class="fas fa-shield-alt me-1"></i> Risk
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="col-12 text-center py-3">
+                <p class="text-muted">No wallet data available</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- Cross-Chain Value -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">Cross-Chain Value Distribution</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <canvas id="crossChainValueChart" height="300"></canvas>
+            </div>
+            <div class="col-md-6">
+                <div class="table-responsive">
+                    <table class="table" id="crossChainValueTable">
+                        <thead>
+                            <tr>
+                                <th>Chain</th>
+                                <th>Native Balance</th>
+                                <th>USD Value</th>
+                                <th>% of Portfolio</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for chain in cross_chain_value.chains %}
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <img src="{{ url_for('static', filename='img/chains/' ~ chain.name ~ '.png') }}" 
+                                             onerror="this.src='{{ url_for('static', filename='img/chains/default.jpeg') }}';"
+                                             alt="{{ chain.name }}" class="me-2" width="24" height="24" />
+                                        {{ chain.name }}
+                                    </div>
+                                </td>
+                                <td>{{ chain.native_balance|round(4) }}</td>
+                                <td>${{ chain.usd_value|round(2) }}</td>
+                                <td>
+                                    <div class="progress" style="height: 5px;">
+                                        <div class="progress-bar" role="progressbar" style="width: {{ chain.percentage|round(2) }}%"></div>
+                                    </div>
+                                    <span>{{ chain.percentage|round(2) }}%</span>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="4" class="text-center py-3">
+                                    <p class="text-muted">No cross-chain data available</p>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Wallet Details Modal -->
+<div class="modal fade" id="walletDetailsModal" tabindex="-1" aria-labelledby="walletDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="walletDetailsModalLabel">Wallet Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <h6 id="details-wallet-address" class="mb-0">0x...</h6>
+                        <small id="details-wallet-chain" class="text-muted">Chain</small>
+                    </div>
+                    <div>
+                        <select class="form-select form-select-sm details-period-select">
+                            <option value="24h">24 Hours</option>
+                            <option value="7d">7 Days</option>
+                            <option value="30d" selected>30 Days</option>
+                            <option value="all">All Time</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-2">
+                                    <small class="text-muted">Current Value:</small>
+                                    <span id="details-current-value" class="float-end">$0.00</span>
+                                </div>
+                                <div class="mb-2">
+                                    <small class="text-muted">Previous Value:</small>
+                                    <span id="details-previous-value" class="float-end">$0.00</span>
+                                </div>
+                                <div class="mb-2">
+                                    <small class="text-muted">Change:</small>
+                                    <span id="details-value-change" class="float-end">$0.00 (0.00%)</span>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-2">
+                                    <small class="text-muted">Native Balance:</small>
+                                    <span id="details-native-balance" class="float-end">0.00</span>
+                                </div>
+                                <div class="mb-2">
+                                    <small class="text-muted">Native Change:</small>
+                                    <span id="details-native-change" class="float-end">0.00 (0.00%)</span>
+                                </div>
+                                <div class="mb-2">
+                                    <small class="text-muted">Tokens Count:</small>
+                                    <span id="details-tokens-count" class="float-end">0</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h6 class="mb-0">Balance History</h6>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="details-balance-chart" height="250"></canvas>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0">Token Performance</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-sm" id="details-token-table">
+                                <thead>
+                                    <tr>
+                                        <th>Token</th>
+                                        <th>Current Balance</th>
+                                        <th>Current Value</th>
+                                        <th>Value Change</th>
+                                        <th>% Change</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="details-token-rows">
+                                    <tr>
+                                        <td colspan="5" class="text-center">Loading token data...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Risk Assessment Modal -->
+<div class="modal fade" id="riskAssessmentModal" tabindex="-1" aria-labelledby="riskAssessmentModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="riskAssessmentModalLabel">Risk Assessment</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <h6 id="risk-wallet-address" class="mb-0">0x...</h6>
+                        <small id="risk-wallet-chain" class="text-muted">Chain</small>
+                    </div>
+                    <div>
+                        <div class="d-flex align-items-center">
+                            <div class="me-3">
+                                <span class="badge" id="risk-level-badge">Unknown</span>
+                            </div>
+                            <div>
+                                <strong>Overall Score: </strong>
+                                <span id="risk-overall-score">0</span>/100
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h6 class="mb-3">Risk Scores</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-2">
+                                    <div class="d-flex justify-content-between">
+                                        <span>Diversification:</span>
+                                        <span id="risk-diversification-score">0</span>/100
+                                    </div>
+                                    <div class="progress" style="height: 5px;">
+                                        <div class="progress-bar" id="risk-diversification-bar" role="progressbar" style="width: 0%"></div>
+                                    </div>
+                                </div>
+                                <div class="mb-2">
+                                    <div class="d-flex justify-content-between">
+                                        <span>Activity:</span>
+                                        <span id="risk-activity-score">0</span>/100
+                                    </div>
+                                    <div class="progress" style="height: 5px;">
+                                        <div class="progress-bar" id="risk-activity-bar" role="progressbar" style="width: 0%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-2">
+                                    <div class="d-flex justify-content-between">
+                                        <span>Volatility:</span>
+                                        <span id="risk-volatility-score">0</span>/100
+                                    </div>
+                                    <div class="progress" style="height: 5px;">
+                                        <div class="progress-bar" id="risk-volatility-bar" role="progressbar" style="width: 0%"></div>
+                                    </div>
+                                </div>
+                                <div class="mb-2">
+                                    <div class="d-flex justify-content-between">
+                                        <span>Gas Efficiency:</span>
+                                        <span id="risk-gas-efficiency-score">0</span>/100
+                                    </div>
+                                    <div class="progress" style="height: 5px;">
+                                        <div class="progress-bar" id="risk-gas-efficiency-bar" role="progressbar" style="width: 0%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <h6 class="mb-0">Risk Factors</h6>
+                            </div>
+                            <div class="card-body">
+                                <ul class="list-group" id="risk-factors-list">
+                                    <li class="list-group-item text-center">Loading risk factors...</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <h6 class="mb-0">Recommendations</h6>
+                            </div>
+                            <div class="card-body">
+                                <ul class="list-group" id="recommendations-list">
+                                    <li class="list-group-item text-center">Loading recommendations...</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0">Portfolio Composition</h6>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="risk-composition-chart" height="200"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Wallet Comparison Modal -->
+<div class="modal fade" id="walletComparisonModal" tabindex="-1" aria-labelledby="walletComparisonModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="walletComparisonModalLabel">Wallet Comparison</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <h6>Select Wallets to Compare</h6>
+                    <div class="row">
+                        <div class="col-md-10">
+                            <select class="form-select" id="comparison-wallets-select" multiple>
+                                {% for wallet in wallets %}
+                                <option value="{{ wallet.id }}">{{ wallet.address[:10] }}... ({{ wallet.chain }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <button class="btn btn-primary w-100" id="apply-comparison-btn">
+                                <i class="fas fa-sync-alt me-2"></i> Apply
+                            </button>
+                        </div>
+                    </div>
+                    <div class="mt-2">
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="comparisonPeriod" id="period24h" value="24h">
+                            <label class="form-check-label" for="period24h">24 Hours</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="comparisonPeriod" id="period7d" value="7d">
+                            <label class="form-check-label" for="period7d">7 Days</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="comparisonPeriod" id="period30d" value="30d" checked>
+                            <label class="form-check-label" for="period30d">30 Days</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="comparisonPeriod" id="periodAll" value="all">
+                            <label class="form-check-label" for="periodAll">All Time</label>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="comparison-loading" class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Loading comparison data...</p>
+                </div>
+                
+                <div id="comparison-content" style="display: none;">
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0">Performance Comparison</h6>
+                                </div>
+                                <div class="card-body">
+                                    <canvas id="performance-comparison-chart" height="300"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0">Performance Summary</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="table-responsive">
+                                        <table class="table" id="performance-comparison-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>Wallet</th>
+                                                    <th>Current Value</th>
+                                                    <th>Change</th>
+                                                    <th>% Change</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="performance-comparison-rows">
+                                                <!-- Data will be added dynamically -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card mb-3">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0">Performance Ranking</h6>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="showPercentageToggle" checked>
+                                <label class="form-check-label" for="showPercentageToggle">Show Percentage</label>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div id="wallet-ranking-bars"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0">Best Performer</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div id="best-performer-card">
+                                        <!-- Best performer content will be added dynamically -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0">Worst Performer</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div id="worst-performer-card">
+                                        <!-- Worst performer content will be added dynamically -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Token Chart Modal -->
+<div class="modal fade" id="tokenChartModal" tabindex="-1" aria-labelledby="tokenChartModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="tokenChartModalLabel">Token Price History</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <h6 id="chart-token-name" class="mb-0">Token Name (SYMBOL)</h6>
+                        <small id="chart-token-wallet" class="text-muted">Wallet: 0x...</small>
+                    </div>
+                    <div>
+                        <select class="form-select form-select-sm" id="chart-period-select">
+                            <option value="7">7 Days</option>
+                            <option value="14">14 Days</option>
+                            <option value="30" selected>30 Days</option>
+                            <option value="90">90 Days</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <canvas id="token-price-chart" height="300"></canvas>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="mb-0">Price Statistics</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-6">
+                                        <div class="mb-2">
+                                            <small class="text-muted">Current Price:</small>
+                                            <p id="chart-current-price" class="mb-0">$0.00</p>
+                                        </div>
+                                        <div class="mb-2">
+                                            <small class="text-muted">24h Change:</small>
+                                            <p id="chart-24h-change" class="mb-0">0.00%</p>
+                                        </div>
+                                        <div class="mb-2">
+                                            <small class="text-muted">7d Change:</small>
+                                            <p id="chart-7d-change" class="mb-0">0.00%</p>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="mb-2">
+                                            <small class="text-muted">30d Change:</small>
+                                            <p id="chart-30d-change" class="mb-0">0.00%</p>
+                                        </div>
+                                        <div class="mb-2">
+                                            <small class="text-muted">All-Time High:</small>
+                                            <p id="chart-ath" class="mb-0">$0.00</p>
+                                        </div>
+                                        <div class="mb-2">
+                                            <small class="text-muted">ATH Date:</small>
+                                            <p id="chart-ath-date" class="mb-0">-</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="mb-0">Holdings</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-6">
+                                        <div class="mb-2">
+                                            <small class="text-muted">Balance:</small>
+                                            <p id="chart-balance" class="mb-0">0.00</p>
+                                        </div>
+                                        <div class="mb-2">
+                                            <small class="text-muted">USD Value:</small>
+                                            <p id="chart-usd-value" class="mb-0">$0.00</p>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="mb-2">
+                                            <small class="text-muted">30d P&L:</small>
+                                            <p id="chart-pnl" class="mb-0">$0.00 (0.00%)</p>
+                                        </div>
+                                        <div class="mb-2">
+                                            <small class="text-muted">Last Updated:</small>
+                                            <p id="chart-last-updated" class="mb-0">-</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <a href="#" id="token-explorer-link" target="_blank" class="btn btn-info">
+                    <i class="fas fa-external-link-alt me-1"></i> View on Explorer
+                </a>
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
+<script src="{{ url_for('static', filename='js/balance-analytics.js') }}"></script>
+{% endblock %}

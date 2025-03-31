@@ -1,0 +1,541 @@
+{% extends "base.html" %}
+
+{% block title %}ERC20 Token Deployer - PME-X{% endblock %}
+
+{% block header %}ERC20 Token Deployer{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- Token Configuration Card -->
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title">Deploy New ERC20 Token</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('strategies.deploy_erc20') }}">
+                    {{ csrf_token }}
+                    <div class="mb-3">
+                        <label for="token_name" class="form-label">Token Name</label>
+                        <input type="text" class="form-control" id="token_name" name="token_name" required>
+                        <div class="form-text">Full name of your token (e.g., "My Custom Token")</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="token_symbol" class="form-label">Token Symbol</label>
+                        <input type="text" class="form-control" id="token_symbol" name="token_symbol" maxlength="8" required>
+                        <div class="form-text">Short symbol for your token (e.g., "MCT")</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="chain" class="form-label">Chain</label>
+                        <select class="form-select" id="chain" name="chain" required>
+                            <option value="" selected disabled>Select a chain</option>
+                            {% for chain in chains %}
+                                {% if chain.status == 'active' %}
+                                <option value="{{ chain.name }}">{{ chain.name }}</option>
+                                {% endif %}
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">Blockchain to deploy the token on</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="total_supply" class="form-label">Total Supply</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="total_supply" name="total_supply" min="1" required>
+                            <span class="input-group-text">Tokens</span>
+                        </div>
+                        <div class="form-text">Total number of tokens to be minted</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="decimals" class="form-label">Decimals</label>
+                        <select class="form-select" id="decimals" name="decimals">
+                            <option value="18" selected>18 (Standard)</option>
+                            <option value="8">8 (Like BTC)</option>
+                            <option value="6">6 (Like USDC)</option>
+                            <option value="2">2 (Like traditional currencies)</option>
+                        </select>
+                        <div class="form-text">Decimal places for token division</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="token_type" class="form-label">Token Type</label>
+                        <select class="form-select" id="token_type" name="token_type">
+                            <option value="basic" selected>Basic ERC20</option>
+                            <option value="mintable">Mintable</option>
+                            <option value="burnable">Burnable</option>
+                            <option value="mintable_burnable">Mintable & Burnable</option>
+                            <option value="capped">Capped Supply</option>
+                            <option value="pausable">Pausable</option>
+                        </select>
+                        <div class="form-text">Token functionality</div>
+                    </div>
+                    
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="add_liquidity" name="add_liquidity">
+                        <label class="form-check-label" for="add_liquidity">Add initial liquidity after deployment</label>
+                    </div>
+                    
+                    <div id="liquidity-options" class="d-none">
+                        <div class="mb-3">
+                            <label for="liquidity_amount" class="form-label">Liquidity Amount (% of Supply)</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="liquidity_amount" name="liquidity_amount" min="1" max="100" value="50">
+                                <span class="input-group-text">%</span>
+                            </div>
+                            <div class="form-text">Percentage of total supply to add as liquidity</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="liquidity_dex" class="form-label">DEX</label>
+                            <select class="form-select" id="liquidity_dex" name="liquidity_dex">
+                                <option value="uniswap" selected>Uniswap (Ethereum)</option>
+                                <option value="pancakeswap">PancakeSwap (BSC)</option>
+                                <option value="quickswap">QuickSwap (Polygon)</option>
+                                <option value="traderjoe">Trader Joe (Avalanche)</option>
+                            </select>
+                            <div class="form-text">DEX to add initial liquidity on</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="pair_with" class="form-label">Pair With</label>
+                            <select class="form-select" id="pair_with" name="pair_with">
+                                <option value="eth" selected>ETH/Native Chain Token</option>
+                                <option value="usdt">USDT</option>
+                                <option value="usdc">USDC</option>
+                                <option value="dai">DAI</option>
+                            </select>
+                            <div class="form-text">Token to pair with in the liquidity pool</div>
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-file-contract me-2"></i> Deploy Token
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Token List Card -->
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="card-title">Your Deployed Tokens</h5>
+            </div>
+            <div class="card-body">
+                {% if tokens %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Token</th>
+                                <th>Symbol</th>
+                                <th>Chain</th>
+                                <th class="text-end">Supply</th>
+                                <th class="text-center">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for token in tokens %}
+                            <tr>
+                                <td>{{ token.name }}</td>
+                                <td>{{ token.symbol }}</td>
+                                <td>{{ token.chain }}</td>
+                                <td class="text-end">{{ token.total_supply | format_number }}</td>
+                                <td class="text-center">
+                                    <a href="#" class="btn btn-sm btn-outline-primary view-token" data-id="{{ token.id }}" data-bs-toggle="modal" data-bs-target="#tokenDetailsModal">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    {% if token.listed_on %}
+                                    <a href="#" class="btn btn-sm btn-outline-success" title="Listed on {{ token.listed_on | join(', ') }}">
+                                        <i class="fas fa-check-circle"></i>
+                                    </a>
+                                    {% else %}
+                                    <a href="#" class="btn btn-sm btn-outline-secondary add-liquidity-btn" data-id="{{ token.id }}" data-bs-toggle="modal" data-bs-target="#addLiquidityModal">
+                                        <i class="fas fa-plus-circle"></i>
+                                    </a>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-info mb-0">
+                    No tokens deployed yet. Use the form to deploy your first ERC20 token.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Token Contract Card -->
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title">Token Contract Preview</h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info mb-3">
+                    <i class="fas fa-info-circle me-2"></i> This is a preview of the Solidity contract that will be deployed. Customize token parameters using the form on the left.
+                </div>
+                
+                <pre><code class="language-solidity">// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.4;
+
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+contract CustomToken is ERC20, Ownable {
+    constructor(
+        string memory name,
+        string memory symbol,
+        uint256 initialSupply
+    ) ERC20(name, symbol) {
+        _mint(msg.sender, initialSupply * 10 ** decimals());
+    }
+    
+    // Additional functions will appear here based on selected token type
+    // - Mintable tokens will include mint function
+    // - Burnable tokens will include burn function
+    // - Pausable tokens will include pause/unpause functions
+}</code></pre>
+
+                <div class="mt-4">
+                    <h6>Token Features Explanation</h6>
+                    <dl class="row">
+                        <dt class="col-sm-3">Basic ERC20</dt>
+                        <dd class="col-sm-9">Standard token with transfer functionality and fixed supply.</dd>
+                        
+                        <dt class="col-sm-3">Mintable</dt>
+                        <dd class="col-sm-9">Allows the owner to create new tokens after initial deployment.</dd>
+                        
+                        <dt class="col-sm-3">Burnable</dt>
+                        <dd class="col-sm-9">Allows token holders to destroy their tokens, reducing total supply.</dd>
+                        
+                        <dt class="col-sm-3">Capped Supply</dt>
+                        <dd class="col-sm-9">Sets a maximum cap on total supply that cannot be exceeded.</dd>
+                        
+                        <dt class="col-sm-3">Pausable</dt>
+                        <dd class="col-sm-9">Allows the owner to pause token transfers in emergency situations.</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Token Details Modal -->
+<div class="modal fade" id="tokenDetailsModal" tabindex="-1" aria-labelledby="tokenDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="tokenDetailsModalLabel">Token Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <h6>Basic Information</h6>
+                        <dl class="row">
+                            <dt class="col-sm-4">Name:</dt>
+                            <dd class="col-sm-8" id="modal-token-name">-</dd>
+                            
+                            <dt class="col-sm-4">Symbol:</dt>
+                            <dd class="col-sm-8" id="modal-token-symbol">-</dd>
+                            
+                            <dt class="col-sm-4">Chain:</dt>
+                            <dd class="col-sm-8" id="modal-token-chain">-</dd>
+                            
+                            <dt class="col-sm-4">Total Supply:</dt>
+                            <dd class="col-sm-8" id="modal-token-supply">-</dd>
+                            
+                            <dt class="col-sm-4">Created:</dt>
+                            <dd class="col-sm-8" id="modal-token-created">-</dd>
+                        </dl>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Token Address</h6>
+                        <div class="input-group mb-3">
+                            <input type="text" class="form-control" id="modal-token-address" readonly>
+                            <button class="btn btn-outline-secondary" type="button" id="copy-address-btn">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                        </div>
+                        
+                        <h6>Explorer</h6>
+                        <a href="#" target="_blank" id="modal-explorer-link" class="btn btn-sm btn-outline-primary">
+                            <i class="fas fa-external-link-alt me-2"></i> View on Explorer
+                        </a>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-12">
+                        <h6>Listings</h6>
+                        <div id="modal-token-listings">
+                            <div class="alert alert-info">
+                                No exchange listings found.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Liquidity Modal -->
+<div class="modal fade" id="addLiquidityModal" tabindex="-1" aria-labelledby="addLiquidityModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addLiquidityModalLabel">Add Liquidity</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addLiquidityForm">
+                    <input type="hidden" id="liquidity-token-id" name="token_id">
+                    
+                    <div class="mb-3">
+                        <label for="modal-liquidity-dex" class="form-label">DEX</label>
+                        <select class="form-select" id="modal-liquidity-dex" name="dex" required>
+                            <option value="uniswap" selected>Uniswap (Ethereum)</option>
+                            <option value="pancakeswap">PancakeSwap (BSC)</option>
+                            <option value="quickswap">QuickSwap (Polygon)</option>
+                            <option value="traderjoe">Trader Joe (Avalanche)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="modal-liquidity-amount" class="form-label">Liquidity Amount (% of Supply)</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="modal-liquidity-amount" name="amount" min="1" max="100" value="50" required>
+                            <span class="input-group-text">%</span>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="modal-pair-with" class="form-label">Pair With</label>
+                        <select class="form-select" id="modal-pair-with" name="pair_with" required>
+                            <option value="eth" selected>ETH/Native Chain Token</option>
+                            <option value="usdt">USDT</option>
+                            <option value="usdc">USDC</option>
+                            <option value="dai">DAI</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="modal-eth-amount" class="form-label">ETH/Native Token Amount</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="modal-eth-amount" name="eth_amount" min="0.01" step="0.01" value="0.1" required>
+                            <span class="input-group-text" id="modal-currency-symbol">ETH</span>
+                        </div>
+                        <div class="form-text">Amount of ETH or native token to pair with your token</div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="submitAddLiquidity">Add Liquidity</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Show/hide liquidity options when checkbox changes
+        const addLiquidityCheckbox = document.getElementById('add_liquidity');
+        const liquidityOptions = document.getElementById('liquidity-options');
+        
+        addLiquidityCheckbox.addEventListener('change', function() {
+            if (this.checked) {
+                liquidityOptions.classList.remove('d-none');
+            } else {
+                liquidityOptions.classList.add('d-none');
+            }
+        });
+        
+        // Update DEX dropdown based on selected chain
+        const chainSelect = document.getElementById('chain');
+        const liquidityDexSelect = document.getElementById('liquidity_dex');
+        
+        chainSelect.addEventListener('change', function() {
+            const chain = this.value;
+            liquidityDexSelect.innerHTML = '';
+            
+            switch(chain) {
+                case 'ethereum':
+                    addOption(liquidityDexSelect, 'uniswap', 'Uniswap');
+                    addOption(liquidityDexSelect, 'sushiswap', 'SushiSwap');
+                    break;
+                case 'bsc':
+                    addOption(liquidityDexSelect, 'pancakeswap', 'PancakeSwap');
+                    addOption(liquidityDexSelect, 'biswap', 'BiSwap');
+                    break;
+                case 'polygon':
+                    addOption(liquidityDexSelect, 'quickswap', 'QuickSwap');
+                    addOption(liquidityDexSelect, 'sushiswap', 'SushiSwap');
+                    break;
+                case 'avalanche':
+                    addOption(liquidityDexSelect, 'traderjoe', 'Trader Joe');
+                    addOption(liquidityDexSelect, 'pangolin', 'Pangolin');
+                    break;
+                case 'arbitrum-one':
+                    addOption(liquidityDexSelect, 'uniswap', 'Uniswap');
+                    addOption(liquidityDexSelect, 'sushiswap', 'SushiSwap');
+                    break;
+                case 'optimism':
+                    addOption(liquidityDexSelect, 'uniswap', 'Uniswap');
+                    addOption(liquidityDexSelect, 'velodrome', 'Velodrome');
+                    break;
+                default:
+                    addOption(liquidityDexSelect, 'uniswap', 'Uniswap');
+            }
+        });
+        
+        function addOption(select, value, text) {
+            const option = document.createElement('option');
+            option.value = value;
+            option.text = text;
+            select.add(option);
+        }
+        
+        // Update currency symbol based on selected chain
+        const modalPairWithSelect = document.getElementById('modal-pair-with');
+        const modalCurrencySymbol = document.getElementById('modal-currency-symbol');
+        
+        modalPairWithSelect.addEventListener('change', function() {
+            const pair = this.value;
+            
+            switch(pair) {
+                case 'eth':
+                    modalCurrencySymbol.textContent = 'ETH';
+                    break;
+                case 'usdt':
+                case 'usdc':
+                case 'dai':
+                    modalCurrencySymbol.textContent = pair.toUpperCase();
+                    break;
+            }
+        });
+        
+        // Token details modal functionality
+        document.querySelectorAll('.view-token').forEach(button => {
+            button.addEventListener('click', function() {
+                const tokenId = this.getAttribute('data-id');
+                
+                // In a real app, this would be an API call to get token details
+                // For demo, we'll use mock data
+                const mockTokenData = {
+                    name: 'Example Token',
+                    symbol: 'EXT',
+                    chain: 'Ethereum',
+                    total_supply: '1,000,000',
+                    created_at: '2023-05-15',
+                    address: '0x1234567890abcdef1234567890abcdef12345678',
+                    explorer_url: 'https://etherscan.io/token/0x1234567890abcdef1234567890abcdef12345678',
+                    listings: [
+                        { dex: 'Uniswap', pair: 'EXT/ETH', url: '#' },
+                        { dex: 'SushiSwap', pair: 'EXT/USDC', url: '#' }
+                    ]
+                };
+                
+                // Populate modal with token data
+                document.getElementById('modal-token-name').textContent = mockTokenData.name;
+                document.getElementById('modal-token-symbol').textContent = mockTokenData.symbol;
+                document.getElementById('modal-token-chain').textContent = mockTokenData.chain;
+                document.getElementById('modal-token-supply').textContent = mockTokenData.total_supply;
+                document.getElementById('modal-token-created').textContent = mockTokenData.created_at;
+                document.getElementById('modal-token-address').value = mockTokenData.address;
+                document.getElementById('modal-explorer-link').href = mockTokenData.explorer_url;
+                
+                // Populate listings
+                const listingsDiv = document.getElementById('modal-token-listings');
+                if (mockTokenData.listings && mockTokenData.listings.length > 0) {
+                    let listingsHTML = '<ul class="list-group">';
+                    mockTokenData.listings.forEach(listing => {
+                        listingsHTML += `
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                ${listing.dex} - ${listing.pair}
+                                <a href="${listing.url}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-external-link-alt"></i> View
+                                </a>
+                            </li>
+                        `;
+                    });
+                    listingsHTML += '</ul>';
+                    listingsDiv.innerHTML = listingsHTML;
+                } else {
+                    listingsDiv.innerHTML = '<div class="alert alert-info">No exchange listings found.</div>';
+                }
+            });
+        });
+        
+        // Copy address button
+        document.getElementById('copy-address-btn').addEventListener('click', function() {
+            const addressInput = document.getElementById('modal-token-address');
+            addressInput.select();
+            document.execCommand('copy');
+            
+            // Show copied tooltip
+            this.innerHTML = '<i class="fas fa-check"></i>';
+            setTimeout(() => {
+                this.innerHTML = '<i class="fas fa-copy"></i>';
+            }, 2000);
+        });
+        
+        // Add liquidity modal
+        document.querySelectorAll('.add-liquidity-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const tokenId = this.getAttribute('data-id');
+                document.getElementById('liquidity-token-id').value = tokenId;
+                
+                // Here you would typically load token data and update the modal
+                // For demo purposes, we'll just set the token ID
+            });
+        });
+        
+        // Submit add liquidity form
+        document.getElementById('submitAddLiquidity').addEventListener('click', function() {
+            const form = document.getElementById('addLiquidityForm');
+            
+            // Validate form
+            if (!form.checkValidity()) {
+                form.reportValidity();
+                return;
+            }
+            
+            // Get form data
+            const tokenId = document.getElementById('liquidity-token-id').value;
+            const dex = document.getElementById('modal-liquidity-dex').value;
+            const amount = document.getElementById('modal-liquidity-amount').value;
+            const pairWith = document.getElementById('modal-pair-with').value;
+            const ethAmount = document.getElementById('modal-eth-amount').value;
+            
+            // In a real app, you would make an API call here
+            // For demo, we'll just show a success message and close the modal
+            alert(`Liquidity added successfully! Added ${amount}% of token supply paired with ${ethAmount} ${pairWith.toUpperCase()} on ${dex}.`);
+            
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('addLiquidityModal'));
+            modal.hide();
+            
+            // Reload page to reflect changes
+            window.location.reload();
+        });
+    });
+</script>
+{% endblock %}

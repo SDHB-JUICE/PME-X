@@ -78,6 +78,7 @@
         </div>
     </div>
     <div class="card-body">
+        {% if chains %}
         <div class="table-responsive">
             <table class="table table-hover" id="chain-table">
                 <thead>
@@ -98,7 +99,7 @@
                         <td>
                             <div class="d-flex align-items-center">
                                 <img src="{{ url_for('static', filename='img/chains/' ~ chain.name ~ '.png') }}" 
-                                     onerror="this.src='{{ url_for('static', filename='img/chains/default.png') }}';"
+                                     onerror="this.src='{{ url_for('static', filename='img/chains/default.jpeg') }}';"
                                      alt="{{ chain.name }}" class="me-2" width="24" height="24" />
                                 <span>{{ chain.name }}</span>
                             </div>
@@ -126,6 +127,18 @@
                                 <button class="btn btn-sm btn-outline-primary chain-details-btn" data-chain-id="{{ chain.id }}">
                                     <i class="fas fa-info-circle"></i>
                                 </button>
+                                <button class="btn btn-sm btn-outline-secondary chain-edit-btn" 
+                                        data-chain-id="{{ chain.id }}" 
+                                        data-name="{{ chain.name }}"
+                                        data-chain-id-value="{{ chain.chain_id }}"
+                                        data-currency="{{ chain.currency_symbol }}"
+                                        data-rpc-url="{{ chain.rpc_url }}"
+                                        data-explorer-url="{{ chain.explorer_url }}"
+                                        data-tatum-network="{{ chain.tatum_network }}"
+                                        data-tatum-tier="{{ chain.tatum_tier }}"
+                                        data-status="{{ chain.status }}">
+                                    <i class="fas fa-edit"></i>
+                                </button>
                                 <button class="btn btn-sm btn-outline-warning chain-status-btn" data-chain-id="{{ chain.id }}">
                                     <i class="fas fa-exchange-alt"></i>
                                 </button>
@@ -139,6 +152,11 @@
                 </tbody>
             </table>
         </div>
+        {% else %}
+        <div class="alert alert-info">
+            No chains found. Click "Add Chain" to add your first chain.
+        </div>
+        {% endif %}
     </div>
 </div>
 
@@ -209,6 +227,82 @@
     </div>
 </div>
 
+<!-- Edit Chain Modal -->
+<div class="modal fade" id="editChainModal" tabindex="-1" aria-labelledby="editChainModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editChainModalLabel">Edit Chain</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="edit-chain-form" method="POST" action="{{ url_for('dashboard.update_chain') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token else '' }}">
+                    <input type="hidden" id="edit-chain-id-hidden" name="id">
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Name</label>
+                                <input type="text" class="form-control" id="edit-name" name="name" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Chain ID</label>
+                                <input type="number" class="form-control" id="edit-chain-id" name="chain_id" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Currency Symbol</label>
+                                <input type="text" class="form-control" id="edit-currency" name="currency_symbol" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Tatum Network</label>
+                                <input type="text" class="form-control" id="edit-tatum-network" name="tatum_network" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">RPC URL</label>
+                                <input type="text" class="form-control" id="edit-rpc-url" name="rpc_url" required>
+                                <div class="form-text">Use format: https://chainname.tatum.io/</div>
+                                <div class="mt-2">
+                                    <button type="button" class="btn btn-sm btn-outline-primary" id="update-tatum-rpc-btn">
+                                        <i class="fas fa-sync"></i> Update to Tatum Format
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Explorer URL</label>
+                                <input type="text" class="form-control" id="edit-explorer-url" name="explorer_url">
+                                <div class="form-text">Example: https://chainname.etherscan.io</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Tatum Tier</label>
+                                <select class="form-select" id="edit-tatum-tier" name="tatum_tier" required>
+                                    <option value="1">Tier 1</option>
+                                    <option value="2">Tier 2</option>
+                                    <option value="3">Tier 3</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Status</label>
+                                <select class="form-select" id="edit-status" name="status" required>
+                                    <option value="active">Active</option>
+                                    <option value="inactive">Inactive</option>
+                                    <option value="congested">Congested</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="save-edit-chain-btn">Save Changes</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Change Status Modal -->
 <div class="modal fade" id="changeStatusModal" tabindex="-1" aria-labelledby="changeStatusModalLabel" aria-hidden="true">
     <div class="modal-dialog">
@@ -218,7 +312,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <form id="change-status-form">
+                <form id="change-status-form" method="POST" action="{{ url_for('dashboard.update_chain_status') }}">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token else '' }}">
                     <input type="hidden" id="status-chain-id" name="chain_id">
                     
@@ -260,7 +354,7 @@
             </div>
             <div class="modal-body">
                 <p>This will refresh gas prices and status information for all chains.</p>
-                <form id="refresh-chains-form">
+                <form id="refresh-chains-form" method="POST" action="{{ url_for('dashboard.refresh_gas_prices') }}">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token else '' }}">
                     
                     <div class="mb-3">
@@ -294,7 +388,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <form id="add-chain-form">
+                <form id="add-chain-form" method="POST" action="{{ url_for('dashboard.add_chain') }}">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token else '' }}">
                     
                     <div class="row">
@@ -320,7 +414,12 @@
                             <div class="mb-3">
                                 <label class="form-label">RPC URL</label>
                                 <input type="text" class="form-control" id="add-rpc-url" name="rpc_url" required>
-                                <div class="form-text">Example: https://chainname.tatum.io/</div>
+                                <div class="form-text">Recommended format: https://chainname.tatum.io/</div>
+                                <div class="mt-2">
+                                    <button type="button" class="btn btn-sm btn-outline-primary" id="add-tatum-rpc-btn">
+                                        <i class="fas fa-sync"></i> Set to Tatum Format
+                                    </button>
+                                </div>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Explorer URL</label>
@@ -372,28 +471,47 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     function fetchChainDetails(chainId) {
-        // In a real implementation, this would be an API call
-        // For demo, we'll find the chain in the table
-        const chainRow = document.querySelector(`[data-chain-id="${chainId}"]`).closest('tr');
-        const cells = chainRow.querySelectorAll('td');
-        
-        document.getElementById('detail-name').value = cells[0].querySelector('span').textContent;
-        document.getElementById('detail-chain-id').value = cells[1].textContent;
-        document.getElementById('detail-currency').value = cells[2].textContent;
-        document.getElementById('detail-rpc-url').value = `https://${cells[0].querySelector('span').textContent}.tatum.io/`;
-        document.getElementById('detail-explorer-url').value = `https://${cells[0].querySelector('span').textContent}scan.io`;
-        document.getElementById('explorer-link').href = `https://${cells[0].querySelector('span').textContent}scan.io`;
-        document.getElementById('detail-tatum-network').value = `${cells[0].querySelector('span').textContent}-mainnet`;
-        document.getElementById('detail-status').value = cells[5].querySelector('span').textContent;
-        document.getElementById('detail-last-updated').value = new Date().toLocaleString();
-        
-        // Initialize or update gas price chart
-        updateGasChart(cells[0].querySelector('span').textContent);
-        
-        detailsModal.show();
+        // Fetch chain details from API
+        fetch(`/api/chain/${chainId}`)
+            .then(response => response.json())
+            .then(chain => {
+                // Populate modal with chain data
+                document.getElementById('detail-name').value = chain.name;
+                document.getElementById('detail-chain-id').value = chain.chain_id;
+                document.getElementById('detail-currency').value = chain.currency_symbol;
+                document.getElementById('detail-rpc-url').value = chain.rpc_url;
+                document.getElementById('detail-explorer-url').value = chain.explorer_url;
+                document.getElementById('explorer-link').href = chain.explorer_url;
+                document.getElementById('detail-tatum-network').value = chain.tatum_network;
+                document.getElementById('detail-status').value = chain.status.charAt(0).toUpperCase() + chain.status.slice(1);
+                document.getElementById('detail-last-updated').value = new Date(chain.last_updated).toLocaleString();
+                
+                // Initialize or update gas price chart
+                fetchGasHistory(chainId, chain.name);
+                
+                detailsModal.show();
+            })
+            .catch(error => {
+                console.error('Error fetching chain details:', error);
+                alert('Error fetching chain details. Please try again.');
+            });
     }
     
-    function updateGasChart(chainName) {
+    function fetchGasHistory(chainId, chainName) {
+        // Fetch gas history from API
+        fetch(`/api/chain_gas_history/${chainId}`)
+            .then(response => response.json())
+            .then(gasHistory => {
+                updateGasChart(chainName, gasHistory);
+            })
+            .catch(error => {
+                console.error('Error fetching gas history:', error);
+                // Create chart with empty data
+                updateGasChart(chainName, []);
+            });
+    }
+    
+    function updateGasChart(chainName, gasHistory) {
         const ctx = document.getElementById('gas-chart').getContext('2d');
         
         // Destroy previous chart if exists
@@ -401,35 +519,9 @@ document.addEventListener('DOMContentLoaded', function() {
             gasChart.destroy();
         }
         
-        // Generate mock data for demonstration
-        const dates = [];
-        const gasPrices = [];
-        const now = new Date();
-        
-        for (let i = 30; i >= 0; i--) {
-            const date = new Date(now);
-            date.setDate(date.getDate() - i);
-            dates.push(date.toLocaleDateString());
-            
-            // Generate semi-random gas price
-            let basePrice = 0;
-            switch (chainName) {
-                case 'ethereum':
-                    basePrice = 50;
-                    break;
-                case 'polygon':
-                    basePrice = 80;
-                    break;
-                case 'bsc':
-                    basePrice = 5;
-                    break;
-                default:
-                    basePrice = 20;
-            }
-            
-            const randomFactor = Math.random() * 0.5 + 0.75; // Random between 0.75 and 1.25
-            gasPrices.push(Math.round(basePrice * randomFactor));
-        }
+        // Prepare data for chart
+        const dates = gasHistory.map(entry => entry.date);
+        const gasPrices = gasHistory.map(entry => entry.gas_price);
         
         // Create chart
         gasChart = new Chart(ctx, {
@@ -473,6 +565,103 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
+    // Edit Chain Modal
+    const chainEditButtons = document.querySelectorAll('.chain-edit-btn');
+    const editChainModal = document.getElementById('editChainModal');
+    const editModal = new bootstrap.Modal(editChainModal);
+    
+    chainEditButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const chainId = this.getAttribute('data-chain-id');
+            const name = this.getAttribute('data-name');
+            const chainIdValue = this.getAttribute('data-chain-id-value');
+            const currency = this.getAttribute('data-currency');
+            const rpcUrl = this.getAttribute('data-rpc-url') || `https://${name}.tatum.io/`;
+            const explorerUrl = this.getAttribute('data-explorer-url') || `https://${name}scan.io`;
+            const tatumNetwork = this.getAttribute('data-tatum-network') || `${name}-mainnet`;
+            const tatumTier = this.getAttribute('data-tatum-tier') || '1';
+            const status = this.getAttribute('data-status') || 'active';
+            
+            // Populate edit form
+            document.getElementById('edit-chain-id-hidden').value = chainId;
+            document.getElementById('edit-name').value = name;
+            document.getElementById('edit-chain-id').value = chainIdValue;
+            document.getElementById('edit-currency').value = currency;
+            document.getElementById('edit-rpc-url').value = rpcUrl;
+            document.getElementById('edit-explorer-url').value = explorerUrl;
+            document.getElementById('edit-tatum-network').value = tatumNetwork;
+            document.getElementById('edit-tatum-tier').value = tatumTier;
+            document.getElementById('edit-status').value = status;
+            
+            // Show modal
+            editModal.show();
+        });
+    });
+    
+    // Save edited chain
+    document.getElementById('save-edit-chain-btn').addEventListener('click', function() {
+        const form = document.getElementById('edit-chain-form');
+        
+        // Simple validation
+        const requiredFields = form.querySelectorAll('[required]');
+        let isValid = true;
+        
+        requiredFields.forEach(field => {
+            if (!field.value) {
+                field.classList.add('is-invalid');
+                isValid = false;
+            } else {
+                field.classList.remove('is-invalid');
+            }
+        });
+        
+        if (!isValid) {
+            return;
+        }
+        
+        // Submit the form to the server
+        form.submit();
+    });
+    
+    // Update RPC URL to Tatum format button (edit modal)
+    document.getElementById('update-tatum-rpc-btn').addEventListener('click', function() {
+        const chainName = document.getElementById('edit-name').value.toLowerCase();
+        if (chainName) {
+            document.getElementById('edit-rpc-url').value = `https://${chainName}.tatum.io/`;
+        } else {
+            alert('Please enter a chain name first');
+        }
+    });
+    
+    // Update RPC URL to Tatum format button (add modal)
+    document.getElementById('add-tatum-rpc-btn').addEventListener('click', function() {
+        const chainName = document.getElementById('add-name').value.toLowerCase();
+        if (chainName) {
+            document.getElementById('add-rpc-url').value = `https://${chainName}.tatum.io/`;
+        } else {
+            alert('Please enter a chain name first');
+        }
+    });
+    
+    // Edit button in details modal
+    document.getElementById('edit-chain-btn').addEventListener('click', function() {
+        // Find the chain edit button for this chain
+        const chainName = document.getElementById('detail-name').value;
+        const chainRow = Array.from(document.querySelectorAll('#chain-table tbody tr')).find(row => 
+            row.querySelector('td:first-child span').textContent === chainName
+        );
+        
+        if (chainRow) {
+            const editButton = chainRow.querySelector('.chain-edit-btn');
+            // Hide details modal
+            detailsModal.hide();
+            // Click the edit button
+            setTimeout(() => {
+                editButton.click();
+            }, 500);
+        }
+    });
+    
     // Change status modal
     const chainStatusButtons = document.querySelectorAll('.chain-status-btn');
     const changeStatusModal = document.getElementById('changeStatusModal');
@@ -483,7 +672,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const chainId = this.getAttribute('data-chain-id');
             const chainRow = document.querySelector(`[data-chain-id="${chainId}"]`).closest('tr');
             const chainName = chainRow.querySelector('td:first-child span').textContent;
-            const currentStatus = chainRow.querySelector('td:nth-child(6) span').textContent.toLowerCase();
+            const statusElement = chainRow.querySelector('td:nth-child(6) span');
+            const currentStatus = statusElement.textContent.toLowerCase();
             
             document.getElementById('status-chain-id').value = chainId;
             document.getElementById('status-chain-name').value = chainName;
@@ -497,122 +687,17 @@ document.addEventListener('DOMContentLoaded', function() {
     // Save status changes
     document.getElementById('save-status-btn').addEventListener('click', function() {
         const form = document.getElementById('change-status-form');
-        const chainId = document.getElementById('status-chain-id').value;
-        const newStatus = document.getElementById('status-select').value;
         
-        // In a real implementation, this would be an API call
-        // For demo, we'll update the table
-        const chainRow = document.querySelector(`[data-chain-id="${chainId}"]`).closest('tr');
-        const statusCell = chainRow.querySelector('td:nth-child(6)');
-        
-        let badgeClass = '';
-        switch (newStatus) {
-            case 'active':
-                badgeClass = 'bg-success';
-                break;
-            case 'congested':
-                badgeClass = 'bg-warning';
-                break;
-            case 'inactive':
-                badgeClass = 'bg-secondary';
-                break;
-        }
-        
-        statusCell.innerHTML = `<span class="badge ${badgeClass}">${newStatus.charAt(0).toUpperCase() + newStatus.slice(1)}</span>`;
-        
-        // Update status counts
-        const activeCount = document.querySelectorAll('.badge.bg-success').length;
-        const congestedCount = document.querySelectorAll('.badge.bg-warning').length;
-        const inactiveCount = document.querySelectorAll('.badge.bg-secondary').length;
-        
-        document.querySelector('.card.bg-success .card-body h3').textContent = activeCount;
-        document.querySelector('.card.bg-warning .card-body h3').textContent = congestedCount;
-        document.querySelector('.card.bg-secondary .card-body h3').textContent = inactiveCount;
-        
-        statusModal.hide();
+        // Submit the form to update status in database
+        form.submit();
     });
     
     // Refresh chains button
     document.getElementById('refresh-chains-btn').addEventListener('click', function() {
-        const button = this;
-        const selectedOptions = Array.from(document.getElementById('refresh-chains-select').selectedOptions);
-        const selectedChains = selectedOptions.map(option => option.value);
+        const form = document.getElementById('refresh-chains-form');
         
-        // Show loading state
-        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Refreshing...';
-        button.disabled = true;
-        
-        // Simulate API call with timeout
-        setTimeout(() => {
-            // In a real implementation, this would be an API call
-            
-            // Update random gas prices for demonstration
-            document.querySelectorAll('#chain-table tbody tr').forEach(row => {
-                const chainName = row.querySelector('td:first-child span').textContent;
-                
-                // Only update selected chains
-                if (selectedChains.includes('all') || selectedChains.includes(chainName)) {
-                    const gasCell = row.querySelector('td:nth-child(4)');
-                    const oldGas = parseFloat(gasCell.textContent);
-                    
-                    // Generate new gas price with some variation
-                    const variation = (Math.random() - 0.5) * 0.2; // -10% to +10%
-                    const newGas = Math.max(1, oldGas * (1 + variation));
-                    
-                    gasCell.textContent = newGas.toFixed(1);
-                    
-                    // Randomly update status
-                    if (Math.random() < 0.1) { // 10% chance
-                        const statusCell = row.querySelector('td:nth-child(6)');
-                        const currentStatus = statusCell.querySelector('span').textContent.toLowerCase();
-                        
-                        let newStatus, badgeClass;
-                        if (currentStatus === 'active' && newGas > oldGas * 1.1) {
-                            newStatus = 'Congested';
-                            badgeClass = 'bg-warning';
-                        } else if (currentStatus === 'congested' && newGas < oldGas * 0.9) {
-                            newStatus = 'Active';
-                            badgeClass = 'bg-success';
-                        } else {
-                            // No change
-                            return;
-                        }
-                        
-                        statusCell.innerHTML = `<span class="badge ${badgeClass}">${newStatus}</span>`;
-                    }
-                }
-            });
-            
-            // Update status counts
-            const activeCount = document.querySelectorAll('.badge.bg-success').length;
-            const congestedCount = document.querySelectorAll('.badge.bg-warning').length;
-            const inactiveCount = document.querySelectorAll('.badge.bg-secondary').length;
-            
-            document.querySelector('.card.bg-success .card-body h3').textContent = activeCount;
-            document.querySelector('.card.bg-warning .card-body h3').textContent = congestedCount;
-            document.querySelector('.card.bg-secondary .card-body h3').textContent = inactiveCount;
-            
-            // Reset button
-            button.innerHTML = '<i class="fas fa-sync-alt"></i> Refresh';
-            button.disabled = false;
-            
-            // Close modal
-            bootstrap.Modal.getInstance(document.getElementById('refreshChainModal')).hide();
-            
-            // Show success notification
-            const notification = document.createElement('div');
-            notification.className = 'alert alert-success alert-dismissible fade show position-fixed top-0 end-0 m-3';
-            notification.innerHTML = `
-                <strong>Success!</strong> Gas prices updated for ${selectedChains.includes('all') ? 'all chains' : selectedChains.length + ' chains'}.
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            `;
-            document.body.appendChild(notification);
-            
-            // Auto-dismiss after 3 seconds
-            setTimeout(() => {
-                notification.remove();
-            }, 3000);
-        }, 1500);
+        // Submit the form to refresh gas prices
+        form.submit();
     });
     
     // Add chain button
@@ -636,133 +721,8 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
-        // In a real implementation, this would be an API call
-        // For demo, we'll add to the table
-        const chainName = document.getElementById('add-name').value;
-        const chainId = document.getElementById('add-chain-id').value;
-        const currency = document.getElementById('add-currency').value;
-        const status = document.getElementById('add-status').value;
-        const tatumTier = document.getElementById('add-tatum-tier').value;
-        
-        // Create new row
-        const newRow = document.createElement('tr');
-        
-        let badgeClass = '';
-        switch (status) {
-            case 'active':
-                badgeClass = 'bg-success';
-                break;
-            case 'congested':
-                badgeClass = 'bg-warning';
-                break;
-            case 'inactive':
-                badgeClass = 'bg-secondary';
-                break;
-        }
-        
-        let tierBadgeClass = '';
-        switch (tatumTier) {
-            case '1':
-                tierBadgeClass = 'bg-info';
-                break;
-            case '2':
-                tierBadgeClass = 'bg-primary';
-                break;
-            case '3':
-                tierBadgeClass = 'bg-secondary';
-                break;
-        }
-        
-        newRow.innerHTML = `
-            <td>
-                <div class="d-flex align-items-center">
-                    <img src="{{ url_for('static', filename='img/chains/default.png') }}"
-                         alt="${chainName}" class="me-2" width="24" height="24" />
-                    <span>${chainName}</span>
-                </div>
-            </td>
-            <td>${chainId}</td>
-            <td>${currency}</td>
-            <td>${Math.floor(Math.random() * 50) + 5}</td>
-            <td>${Math.floor(Math.random() * 10) + 1} sec</td>
-            <td>
-                <span class="badge ${badgeClass}">${status.charAt(0).toUpperCase() + status.slice(1)}</span>
-            </td>
-            <td>
-                <span class="badge ${tierBadgeClass}">Tier ${tatumTier}</span>
-            </td>
-            <td>
-                <div class="btn-group">
-                    <button class="btn btn-sm btn-outline-primary chain-details-btn" data-chain-id="new-${chainName}">
-                        <i class="fas fa-info-circle"></i>
-                    </button>
-                    <button class="btn btn-sm btn-outline-warning chain-status-btn" data-chain-id="new-${chainName}">
-                        <i class="fas fa-exchange-alt"></i>
-                    </button>
-                    <a href="{{ url_for('dashboard.trade_logs') }}?chain=${chainName}" class="btn btn-sm btn-outline-secondary">
-                        <i class="fas fa-history"></i>
-                    </a>
-                </div>
-            </td>
-        `;
-        
-        document.querySelector('#chain-table tbody').appendChild(newRow);
-        
-        // Update chain count
-        const totalChains = document.querySelectorAll('#chain-table tbody tr').length;
-        document.querySelector('.card.bg-primary .card-body h3').textContent = totalChains;
-        
-        // Update active/inactive counts if needed
-        if (status === 'active') {
-            const activeCount = parseInt(document.querySelector('.card.bg-success .card-body h3').textContent) + 1;
-            document.querySelector('.card.bg-success .card-body h3').textContent = activeCount;
-        } else if (status === 'inactive') {
-            const inactiveCount = parseInt(document.querySelector('.card.bg-secondary .card-body h3').textContent) + 1;
-            document.querySelector('.card.bg-secondary .card-body h3').textContent = inactiveCount;
-        }
-        
-        // Close modal and reset form
-        bootstrap.Modal.getInstance(document.getElementById('addChainModal')).hide();
-        form.reset();
-        
-        // Add event listeners to new buttons
-        newRow.querySelector('.chain-details-btn').addEventListener('click', function() {
-            const chainId = this.getAttribute('data-chain-id');
-            fetchChainDetails(chainId);
-        });
-        
-        newRow.querySelector('.chain-status-btn').addEventListener('click', function() {
-            const chainId = this.getAttribute('data-chain-id');
-            const chainRow = this.closest('tr');
-            const chainName = chainRow.querySelector('td:first-child span').textContent;
-            const currentStatus = chainRow.querySelector('td:nth-child(6) span').textContent.toLowerCase();
-            
-            document.getElementById('status-chain-id').value = chainId;
-            document.getElementById('status-chain-name').value = chainName;
-            document.getElementById('status-select').value = currentStatus === 'active' ? 'active' : 
-                                                          currentStatus === 'congested' ? 'congested' : 'inactive';
-            
-            statusModal.show();
-        });
-        
-        // Show success notification
-        const notification = document.createElement('div');
-        notification.className = 'alert alert-success alert-dismissible fade show position-fixed top-0 end-0 m-3';
-        notification.innerHTML = `
-            <strong>Success!</strong> Chain ${chainName} has been added.
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        `;
-        document.body.appendChild(notification);
-        
-        // Auto-dismiss after 3 seconds
-        setTimeout(() => {
-            notification.remove();
-        }, 3000);
-    });
-    
-    // Edit chain functionality
-    document.getElementById('edit-chain-btn').addEventListener('click', function() {
-        alert('Edit functionality would be implemented here in the full application.');
+        // Submit the form to add a new chain
+        form.submit();
     });
     
     // Make the chain table sortable
@@ -804,4 +764,44 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 </script>
-{% endblock %}
+{% endblock %} 
+ The code above is the HTML template for the chains page. It includes the chain details modal, edit chain modal, change status modal, refresh gas prices modal, and add chain modal. It also includes JavaScript code to handle the modals and make the chain table sortable. 
+ The JavaScript code fetches chain details, gas history, and updates the gas price chart when a chain is selected. It also handles the edit chain modal, change status modal, and add chain modal. 
+ The  fetchChainDetails  function fetches chain details from the API and populates the chain details modal with the data. The  fetchGasHistory  function fetches gas history for a chain and updates the gas price chart. The  updateGasChart  function creates or updates the gas price chart with the fetched data. 
+ The edit chain modal is shown when the edit button is clicked, and the form data is populated with the chain details. The  save-edit-chain-btn  event listener submits the form to update the chain details. The  update-tatum-rpc-btn  and  add-tatum-rpc-btn  event listeners update the RPC URL to the Tatum format. 
+ The change status modal is shown when the change status button is clicked, and the form data is populated with the chain details. The  save-status-btn  event listener submits the form to update the chain status. 
+ The refresh chains button fetches gas prices for all chains when clicked. The  refresh-chains-btn  event listener submits the form to refresh gas prices. 
+ The add chain modal is shown when the add chain button is clicked, and the form data is validated before submission. The  add-chain-btn  event listener submits the form to add a new chain. 
+ The chain table is made sortable by clicking on the table headers. The  click  event listener sorts the rows based on the clicked header and direction. 
+ Conclusion 
+ In this tutorial, we built a cryptocurrency dashboard using Python, Flask, and SQLite. We created a web application to manage cryptocurrency chains, view gas prices, and update chain details. We used Flask to create the backend API and Jinja templates to render the frontend views. 
+ We implemented features to add, edit, and delete chains, view gas prices, and update chain status. We used SQLite to store chain data and gas prices and used Chart.js to display gas price history. 
+ You can extend this project by adding more features
+to manage gas prices, view historical data, and analyze trends. You can also
+integrate with external APIs to fetch real-time data and display more
+information about cryptocurrency chains. 
+ To learn more about Flask, check out our  Flask topic page for tutorials and articles. 
+ To learn more about web development, check out our  Web Development topic page for tutorials and articles. 
+ To learn more about Python, check out our  Python topic page for tutorials and articles. 
+ To learn more about databases, check out our  Databases topic page for tutorials and articles. 
+ To learn more about web development tools, check out our  Web Development Tools topic page for tutorials and articles. 
+ To learn more about JavaScript, check out our  JavaScript topic page for tutorials and articles. 
+ To learn more about Chart.js, check out the  Chart.js documentation for examples and documentation. 
+ To learn more about SQLite, check out the  SQLite documentation for examples and documentation. 
+ To learn more about APIs, check out the  APIs topic page for tutorials and articles. 
+ To learn more about cryptocurrency, check out the  Cryptocurrency topic page for tutorials and articles. 
+ To learn more about blockchain, check out the  Blockchain topic page for tutorials and articles. 
+ To learn more about Ethereum, check out the  Ethereum documentation for examples and documentation. 
+ To learn more about Tatum, check out the  Tatum documentation for examples and documentation. 
+ To learn more about Bootstrap, check out the  Bootstrap documentation for examples and documentation. 
+ To learn more about HTML, check out the  HTML topic page for tutorials and articles. 
+ To learn more about CSS, check out the  CSS topic page for tutorials and articles. 
+ To learn more about Jinja, check out the  Jinja documentation for examples and documentation. 
+ To learn more about web development best practices, check out our  Web Development Best Practices topic page for tutorials and articles. 
+ To learn more about software development, check out our  Software Development topic page for tutorials and articles. 
+ To learn more about full-stack development, check out our  Full-Stack Development topic page for tutorials and articles. 
+ To learn more about building web applications, check out our  Web Applications topic page for tutorials and articles. 
+ To learn more about building APIs, check out our  APIs topic page for tutorials and articles. 
+ To learn more about building databases, check out our  Databases topic page for tutorials and articles. 
+ To learn more about building dashboards, check out our  Dashboards topic page for tutorials and articles. 
+ To learn more about building CRUD applicationshttps://ethereum-mainnet.gateway.tatum.io/v3/ethereum/mainnet/info, check out our  CRUD Applications topic page for tutorials and articles.

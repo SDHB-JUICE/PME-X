@@ -1,0 +1,1052 @@
+<h6 class="card-title">Total Wallets</h6>
+                        <h3 class="mb-0">{{ wallets|length }}</h3>
+                    </div>
+                    <i class="fas fa-wallet fa-2x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-success text-white h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Secured Wallets</h6>
+                        <h3 class="mb-0">{{ secured_wallets_count }}</h3>
+                    </div>
+                    <i class="fas fa-shield-alt fa-2x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-info text-white h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Users with Access</h6>
+                        <h3 class="mb-0">{{ users_with_access }}</h3>
+                    </div>
+                    <i class="fas fa-users fa-2x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-warning text-white h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Security Score</h6>
+                        <h3 class="mb-0">{{ avg_security_score }}/100</h3>
+                    </div>
+                    <i class="fas fa-tachometer-alt fa-2x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Security Tools -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <button class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#keyManagementModal">
+                            <i class="fas fa-key me-2"></i> Key Management
+                        </button>
+                        <button class="btn btn-success me-2" data-bs-toggle="modal" data-bs-target="#permissionsModal">
+                            <i class="fas fa-user-lock me-2"></i> Permission Settings
+                        </button>
+                        <button class="btn btn-info me-2" data-bs-toggle="modal" data-bs-target="#hardwareWalletModal">
+                            <i class="fas fa-laptop me-2"></i> Hardware Wallet
+                        </button>
+                        <button class="btn btn-warning me-2" id="securityAuditBtn">
+                            <i class="fas fa-clipboard-check me-2"></i> Security Audit
+                        </button>
+                        <button class="btn btn-danger me-2" data-bs-toggle="modal" data-bs-target="#backupRecoveryModal">
+                            <i class="fas fa-cloud-download-alt me-2"></i> Backup & Recovery
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Security Status Overview -->
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Wallet Security Status</h5>
+        <button class="btn btn-sm btn-outline-primary" id="refreshSecurityBtn">
+            <i class="fas fa-sync-alt me-1"></i> Refresh
+        </button>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover" id="securityStatusTable">
+                <thead>
+                    <tr>
+                        <th>Wallet</th>
+                        <th>Chain</th>
+                        <th>Private Key</th>
+                        <th>Hardware Wallet</th>
+                        <th>Permission Count</th>
+                        <th>Last Audit</th>
+                        <th>Score</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for wallet in wallets %}
+                    <tr>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-wallet text-muted me-2"></i>
+                                <span class="text-truncate" style="max-width: 150px;">{{ wallet.address }}</span>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <img src="{{ url_for('static', filename='img/chains/' ~ wallet.chain ~ '.png') }}" 
+                                     onerror="this.src='{{ url_for('static', filename='img/chains/default.jpeg') }}';"
+                                     alt="{{ wallet.chain }}" class="me-2" width="20" height="20" />
+                                {{ wallet.chain }}
+                            </div>
+                        </td>
+                        <td>
+                            {% if wallet.private_key_encrypted %}
+                            <span class="badge bg-success">Secured</span>
+                            {% else %}
+                            <span class="badge bg-danger">Not Stored</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if wallet.hardware_wallet %}
+                            <span class="badge bg-success">Connected ({{ wallet.hardware_wallet.type }})</span>
+                            {% else %}
+                            <span class="badge bg-secondary">Not Used</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge bg-info">{{ wallet.permissions|length }}</span>
+                        </td>
+                        <td>
+                            {% if wallet.last_audit_date %}
+                            {{ wallet.last_audit_date.strftime('%Y-%m-%d') }}
+                            {% else %}
+                            <span class="text-muted">Never</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <div class="progress me-2" style="width: 50px; height: 8px;">
+                                    <div class="progress-bar bg-{{ 'success' if wallet.security_score >= 70 else 'warning' if wallet.security_score >= 40 else 'danger' }}" 
+                                         role="progressbar" style="width: {{ wallet.security_score }}%"></div>
+                                </div>
+                                <span>{{ wallet.security_score }}/100</span>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="btn-group">
+                                <button class="btn btn-sm btn-outline-primary view-permissions-btn" data-wallet-id="{{ wallet.id }}">
+                                    <i class="fas fa-user-lock"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-info view-audit-btn" data-wallet-id="{{ wallet.id }}">
+                                    <i class="fas fa-clipboard-check"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-warning export-key-btn" data-wallet-id="{{ wallet.id }}">
+                                    <i class="fas fa-key"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="8" class="text-center py-4">
+                            <p class="text-muted">No wallets available</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Security Recommendations -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">Security Recommendations</h5>
+    </div>
+    <div class="card-body">
+        <div class="row" id="recommendationsContainer">
+            {% for rec in security_recommendations %}
+            <div class="col-md-4 mb-3">
+                <div class="card h-100 border-{{ rec.priority_color }}">
+                    <div class="card-body">
+                        <h6 class="card-title">{{ rec.title }}</h6>
+                        <p class="card-text">{{ rec.description }}</p>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="badge bg-{{ rec.priority_color }}">{{ rec.priority|capitalize }}</span>
+                            {% if rec.action_url %}
+                            <a href="{{ rec.action_url }}" class="btn btn-sm btn-primary">Take Action</a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="col-12 text-center py-3">
+                <p class="text-muted">No security recommendations available</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- Recent Audit Activity -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">Recent Security Audit Activity</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table" id="auditActivityTable">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Wallet</th>
+                        <th>Chain</th>
+                        <th>Activity</th>
+                        <th>Old Score</th>
+                        <th>New Score</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for activity in audit_activity %}
+                    <tr>
+                        <td>{{ activity.timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td class="text-truncate" style="max-width: 150px;">{{ activity.wallet_address }}</td>
+                        <td>{{ activity.chain }}</td>
+                        <td>{{ activity.activity_type }}</td>
+                        <td>{{ activity.old_score }}</td>
+                        <td>{{ activity.new_score }}</td>
+                        <td>
+                            <span class="badge bg-{{ 'success' if activity.status == 'improved' else 'danger' if activity.status == 'degraded' else 'secondary' }}">
+                                {{ activity.status|capitalize }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center py-3">
+                            <p class="text-muted">No recent audit activity</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Key Management Modal -->
+<div class="modal fade" id="keyManagementModal" tabindex="-1" aria-labelledby="keyManagementModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="keyManagementModalLabel">Key Management</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <ul class="nav nav-tabs mb-3" id="keyManagementTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="secure-key-tab" data-bs-toggle="tab" data-bs-target="#secure-key" type="button" role="tab" aria-controls="secure-key" aria-selected="true">Secure Key</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="export-key-tab" data-bs-toggle="tab" data-bs-target="#export-key" type="button" role="tab" aria-controls="export-key" aria-selected="false">Export Key</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="key-fragments-tab" data-bs-toggle="tab" data-bs-target="#key-fragments" type="button" role="tab" aria-controls="key-fragments" aria-selected="false">Key Fragments</button>
+                    </li>
+                </ul>
+                <div class="tab-content" id="keyManagementTabContent">
+                    <!-- Secure Key Tab -->
+                    <div class="tab-pane fade show active" id="secure-key" role="tabpanel" aria-labelledby="secure-key-tab">
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            Securely encrypt your private key with a strong password. This will allow the system to perform operations without storing your key in plaintext.
+                        </div>
+                        
+                        <form id="secure-key-form">
+                            <div class="mb-3">
+                                <label class="form-label">Select Wallet</label>
+                                <select class="form-select" id="secure-key-wallet-id" name="wallet_id" required>
+                                    <option value="" selected disabled>Choose a wallet...</option>
+                                    {% for wallet in wallets %}
+                                    <option value="{{ wallet.id }}">{{ wallet.address[:10] }}... ({{ wallet.chain }})</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Private Key</label>
+                                <div class="input-group">
+                                    <input type="password" class="form-control" id="secure-key-private-key" name="private_key" placeholder="Enter private key" required>
+                                    <button class="btn btn-outline-secondary toggle-password" type="button">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Encryption Password</label>
+                                <div class="input-group">
+                                    <input type="password" class="form-control" id="secure-key-password" name="password" placeholder="Enter strong password" required>
+                                    <button class="btn btn-outline-secondary toggle-password" type="button">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
+                                <div class="form-text">Use a strong, unique password that you won't forget</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Confirm Password</label>
+                                <div class="input-group">
+                                    <input type="password" class="form-control" id="secure-key-confirm-password" name="confirm_password" placeholder="Confirm password" required>
+                                    <button class="btn btn-outline-secondary toggle-password" type="button">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <button type="button" class="btn btn-primary" id="secure-key-btn">Secure Key</button>
+                        </form>
+                    </div>
+                    
+                    <!-- Export Key Tab -->
+                    <div class="tab-pane fade" id="export-key" role="tabpanel" aria-labelledby="export-key-tab">
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <strong>Warning:</strong> Exporting your private key should be done with extreme caution. Never share your private key with anyone.
+                        </div>
+                        
+                        <form id="export-key-form">
+                            <div class="mb-3">
+                                <label class="form-label">Select Wallet</label>
+                                <select class="form-select" id="export-key-wallet-id" name="wallet_id" required>
+                                    <option value="" selected disabled>Choose a wallet...</option>
+                                    {% for wallet in wallets %}
+                                    {% if wallet.private_key_encrypted %}
+                                    <option value="{{ wallet.id }}">{{ wallet.address[:10] }}... ({{ wallet.chain }})</option>
+                                    {% endif %}
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Encryption Password</label>
+                                <div class="input-group">
+                                    <input type="password" class="form-control" id="export-key-password" name="password" placeholder="Enter password to decrypt" required>
+                                    <button class="btn btn-outline-secondary toggle-password" type="button">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Create Session Key</label>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="createSessionKeyCheck" name="create_session">
+                                    <label class="form-check-label" for="createSessionKeyCheck">
+                                        Create temporary session key
+                                    </label>
+                                </div>
+                                <div class="form-text">Creates a temporary session key that expires after 30 minutes</div>
+                            </div>
+                            
+                            <button type="button" class="btn btn-warning" id="export-key-btn">Export Key</button>
+                        </form>
+                        
+                        <div id="exported-key-container" class="mt-4" style="display: none;">
+                            <div class="alert alert-success">
+                                <strong>Decryption successful!</strong> Your private key is shown below.
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label">Private Key</label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="exported-key" readonly>
+                                    <button class="btn btn-outline-primary" type="button" id="copy-exported-key-btn">
+                                        <i class="fas fa-copy"></i> Copy
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="mt-3 mb-0">
+                                <div class="alert alert-warning">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>
+                                    This key will be hidden when you close this dialog. Store it securely if needed.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Key Fragments Tab -->
+                    <div class="tab-pane fade" id="key-fragments" role="tabpanel" aria-labelledby="key-fragments-tab">
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            Split your private key into multiple fragments using Shamir's Secret Sharing. You'll need a minimum number of fragments to reconstruct the key.
+                        </div>
+                        
+                        <form id="generate-fragments-form">
+                            <div class="mb-3">
+                                <label class="form-label">Private Key</label>
+                                <div class="input-group">
+                                    <input type="password" class="form-control" id="fragments-private-key" name="private_key" placeholder="Enter private key" required>
+                                    <button class="btn btn-outline-secondary toggle-password" type="button">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
+                                <div class="form-text">Or select a wallet and provide the encryption password</div>
+                            </div>
+                            
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">Wallet (Optional)</label>
+                                    <select class="form-select" id="fragments-wallet-id" name="wallet_id">
+                                        <option value="" selected>Enter private key manually</option>
+                                        {% for wallet in wallets %}
+                                        {% if wallet.private_key_encrypted %}
+                                        <option value="{{ wallet.id }}">{{ wallet.address[:10] }}... ({{ wallet.chain }})</option>
+                                        {% endif %}
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Password (If wallet selected)</label>
+                                    <div class="input-group">
+                                        <input type="password" class="form-control" id="fragments-password" name="password" placeholder="Enter password">
+                                        <button class="btn btn-outline-secondary toggle-password" type="button">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">Number of Shares</label>
+                                    <input type="number" class="form-control" id="fragments-shares" name="num_shares" value="3" min="2" max="10" required>
+                                    <div class="form-text">Total number of fragments to generate</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Threshold</label>
+                                    <input type="number" class="form-control" id="fragments-threshold" name="threshold" value="2" min="2" max="5" required>
+                                    <div class="form-text">Minimum fragments needed to reconstruct</div>
+                                </div>
+                            </div>
+                            
+                            <button type="button" class="btn btn-primary" id="generate-fragments-btn">Generate Fragments</button>
+                        </form>
+                        
+                        <div id="fragments-container" class="mt-4" style="display: none;">
+                            <div class="alert alert-success">
+                                <strong>Fragments generated!</strong> Store these fragments securely in different locations.
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Key Fragments</label>
+                                <div id="fragments-list">
+                                    <!-- Fragments will be added here -->
+                                </div>
+                            </div>
+                            
+                            <div class="alert alert-warning">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                These fragments will be hidden when you close this dialog. Store them securely.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Permissions Modal -->
+<div class="modal fade" id="permissionsModal" tabindex="-1" aria-labelledby="permissionsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="permissionsModalLabel">Permission Settings</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Select Wallet</label>
+                    <select class="form-select" id="permissions-wallet-id">
+                        <option value="" selected disabled>Choose a wallet...</option>
+                        {% for wallet in wallets %}
+                        <option value="{{ wallet.id }}">{{ wallet.address[:10] }}... ({{ wallet.chain }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div id="permissions-container">
+                    <div class="card mb-3">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0">Current Permissions</h6>
+                            <button class="btn btn-sm btn-primary" id="add-permission-btn">
+                                <i class="fas fa-plus"></i> Add User
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-hover" id="permissions-table">
+                                    <thead>
+                                        <tr>
+                                            <th>User</th>
+                                            <th>Email</th>
+                                            <th>Permission Level</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="permissions-list">
+                                        <tr>
+                                            <td colspan="4" class="text-center">Select a wallet to view permissions</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="add-permission-form-container" style="display: none;">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="mb-0">Add Permission</h6>
+                            </div>
+                            <div class="card-body">
+                                <form id="add-permission-form">
+                                    <div class="mb-3">
+                                        <label class="form-label">User</label>
+                                        <select class="form-select" id="permission-user-id" name="user_id" required>
+                                            <option value="" selected disabled>Select a user...</option>
+                                            {% for user in users %}
+                                            <option value="{{ user.id }}">{{ user.username }} ({{ user.email }})</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label class="form-label">Permission Level</label>
+                                        <select class="form-select" id="permission-level" name="permission_level" required>
+                                            <option value="read">Read Only</option>
+                                            <option value="write">Read & Write</option>
+                                            <option value="admin">Admin</option>
+                                        </select>
+                                        <div class="form-text">
+                                            <strong>Read Only:</strong> Can view wallet details<br>
+                                            <strong>Read & Write:</strong> Can view and perform transactions<br>
+                                            <strong>Admin:</strong> Full control including permissions
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="d-flex justify-content-end">
+                                        <button type="button" class="btn btn-secondary me-2" id="cancel-add-permission-btn">Cancel</button>
+                                        <button type="button" class="btn btn-primary" id="save-permission-btn">Save Permission</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Hardware Wallet Modal -->
+<div class="modal fade" id="hardwareWalletModal" tabindex="-1" aria-labelledby="hardwareWalletModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="hardwareWalletModalLabel">Hardware Wallet Integration</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Connect a hardware wallet for enhanced security. Hardware wallets keep your private keys offline.
+                </div>
+                
+                <form id="hardware-wallet-form">
+                    <div class="mb-3">
+                        <label class="form-label">Select Wallet</label>
+                        <select class="form-select" id="hw-wallet-id" name="wallet_id" required>
+                            <option value="" selected disabled>Choose a wallet...</option>
+                            {% for wallet in wallets %}
+                            <option value="{{ wallet.id }}">{{ wallet.address[:10] }}... ({{ wallet.chain }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Hardware Wallet Type</label>
+                        <select class="form-select" id="hw-type" name="hardware_type" required>
+                            <option value="" selected disabled>Select hardware type...</option>
+                            <option value="ledger">Ledger</option>
+                            <option value="trezor">Trezor</option>
+                            <option value="keepkey">KeepKey</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Derivation Path</label>
+                        <input type="text" class="form-control" id="hw-path" name="hardware_path" placeholder="m/44'/60'/0'/0/0" value="m/44'/60'/0'/0/0" required>
+                        <div class="form-text">Standard Ethereum derivation path: m/44'/60'/0'/0/0</div>
+                    </div>
+                    
+                    <button type="button" class="btn btn-primary" id="connect-hw-btn">Connect Hardware Wallet</button>
+                </form>
+                
+                <div class="mt-4">
+                    <h6>Currently Connected Hardware Wallets</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm" id="hw-wallets-table">
+                            <thead>
+                                <tr>
+                                    <th>Wallet Address</th>
+                                    <th>Hardware Type</th>
+                                    <th>Path</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="hw-wallets-list">
+                                <!-- Connected hardware wallets will be displayed here -->
+                                <tr>
+                                    <td colspan="5" class="text-center">No hardware wallets connected</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Security Audit Modal -->
+<div class="modal fade" id="securityAuditModal" tabindex="-1" aria-labelledby="securityAuditModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="securityAuditModalLabel">Security Audit</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Select Wallet</label>
+                    <select class="form-select" id="audit-wallet-id">
+                        <option value="" selected disabled>Choose a wallet...</option>
+                        {% for wallet in wallets %}
+                        <option value="{{ wallet.id }}">{{ wallet.address[:10] }}... ({{ wallet.chain }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div id="audit-results-container" style="display: none;">
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <div>
+                                    <h6 id="audit-wallet-address" class="mb-0">0x...</h6>
+                                    <small id="audit-timestamp" class="text-muted">Audit Time: 2023-01-01 12:00:00</small>
+                                </div>
+                                <div>
+                                    <div class="d-flex align-items-center">
+                                        <div class="me-3">
+                                            <span class="badge" id="audit-risk-level">Unknown</span>
+                                        </div>
+                                        <div>
+                                            <strong>Overall Score: </strong>
+                                            <span id="audit-overall-score">0</span>/100
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="progress mb-3" style="height: 10px;">
+                                <div class="progress-bar" id="audit-score-bar" role="progressbar" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <h6>Security Checks</h6>
+                        <div id="security-checks-list">
+                            <!-- Security checks will be displayed here -->
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="audit-loading" class="text-center py-4" style="display: none;">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Performing security audit...</p>
+                </div>
+                
+                <div id="audit-empty" class="text-center py-4">
+                    <p class="text-muted">Select a wallet and click "Perform Audit" to begin</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" id="perform-audit-btn">Perform Audit</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Backup & Recovery Modal -->
+<div class="modal fade" id="backupRecoveryModal" tabindex="-1" aria-labelledby="backupRecoveryModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="backupRecoveryModalLabel">Backup & Recovery</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <ul class="nav nav-tabs mb-3" id="backupRecoveryTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="backup-wallets-tab" data-bs-toggle="tab" data-bs-target="#backup-wallets" type="button" role="tab" aria-controls="backup-wallets" aria-selected="true">Backup Wallets</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="restore-wallets-tab" data-bs-toggle="tab" data-bs-target="#restore-wallets" type="button" role="tab" aria-controls="restore-wallets" aria-selected="false">Restore Wallets</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="recovery-phrase-tab" data-bs-toggle="tab" data-bs-target="#recovery-phrase" type="button" role="tab" aria-controls="recovery-phrase" aria-selected="false">Recovery Phrase</button>
+                    </li>
+                </ul>
+                <div class="tab-content" id="backupRecoveryTabContent">
+                    <!-- Backup Wallets Tab -->
+                    <div class="tab-pane fade show active" id="backup-wallets" role="tabpanel" aria-labelledby="backup-wallets-tab">
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            Create an encrypted backup of your wallets. You'll need the backup password to restore wallets.
+                        </div>
+                        
+                        <form id="backup-wallets-form">
+                            <div class="mb-3">
+                                <label class="form-label">Select Wallets to Backup</label>
+                                <select class="form-select" id="backup-wallet-ids" multiple>
+                                    {% for wallet in wallets %}
+                                    <option value="{{ wallet.id }}" selected>{{ wallet.address[:10] }}... ({{ wallet.chain }})</option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text">Hold Ctrl/Cmd to select multiple wallets</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Backup Password</label>
+                                <div class="input-group">
+                                    <input type="password" class="form-control" id="backup-password" name="backup_password" placeholder="Enter strong password for encryption" required>
+                                    <button class="btn btn-outline-secondary toggle-password" type="button">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
+                                <div class="form-text">This password will be used to encrypt your backup file</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Confirm Password</label>
+                                <div class="input-group">
+                                    <input type="password" class="form-control" id="backup-confirm-password" name="confirm_password" placeholder="Confirm password" required>
+                                    <button class="btn btn-outline-secondary toggle-password" type="button">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="include-private-keys" name="include_private_keys" checked>
+                                    <label class="form-check-label" for="include-private-keys">
+                                        Include encrypted private keys
+                                    </label>
+                                </div>
+                                <div class="form-text">Uncheck if you only want to backup wallet addresses and metadata</div>
+                            </div>
+                            
+                            <button type="button" class="btn btn-primary" id="create-backup-btn">Create Backup</button>
+                        </form>
+                        
+                        <div id="backup-result" class="mt-4" style="display: none;">
+                            <div class="alert alert-success">
+                                <strong>Backup created successfully!</strong> Download the backup file and store it securely.
+                            </div>
+                            
+                            <div class="d-grid">
+                                <a href="#" id="download-backup-btn" class="btn btn-success">
+                                    <i class="fas fa-download me-2"></i> Download Backup File
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Restore Wallets Tab -->
+                    <div class="tab-pane fade" id="restore-wallets" role="tabpanel" aria-labelledby="restore-wallets-tab">
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            Restore wallets from a previously created backup file.
+                        </div>
+                        
+                        <form id="restore-wallets-form">
+                            <div class="mb-3">
+                                <label class="form-label">Backup File</label>
+                                <input type="file" class="form-control" id="backup-file" name="backup_file" required>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Backup Password</label>
+                                <div class="input-group">
+                                    <input type="password" class="form-control" id="restore-password" name="backup_password" placeholder="Enter backup password" required>
+                                    <button class="btn btn-outline-secondary toggle-password" type="button">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="restore-private-keys" name="restore_private_keys" checked>
+                                    <label class="form-check-label" for="restore-private-keys">
+                                        Restore private keys
+                                    </label>
+                                </div>
+                                <div class="form-text">Uncheck if you only want to restore wallet addresses and metadata</div>
+                            </div>
+                            
+                            <button type="button" class="btn btn-primary" id="restore-wallets-btn">Restore Wallets</button>
+                        </form>
+                        
+                        <div id="restore-result" class="mt-4" style="display: none;">
+                            <div class="alert alert-success">
+                                <strong>Restore completed!</strong> <span id="restore-summary"></span>
+                            </div>
+                            
+                            <div class="table-responsive">
+                                <table class="table table-sm" id="restored-wallets-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Address</th>
+                                            <th>Chain</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="restored-wallets-list">
+                                        <!-- Restored wallets will be displayed here -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Recovery Phrase Tab -->
+                    <div class="tab-pane fade" id="recovery-phrase" role="tabpanel" aria-labelledby="recovery-phrase-tab">
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <strong>Important:</strong> Your recovery phrase gives full access to your wallets. Never share it with anyone.
+                        </div>
+                        
+                        <ul class="nav nav-pills mb-3" id="recoveryPhraseTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="generate-phrase-tab" data-bs-toggle="pill" data-bs-target="#generate-phrase" type="button" role="tab" aria-controls="generate-phrase" aria-selected="true">Generate Phrase</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="recover-wallet-tab" data-bs-toggle="pill" data-bs-target="#recover-wallet" type="button" role="tab" aria-controls="recover-wallet" aria-selected="false">Recover Wallet</button>
+                            </li>
+                        </ul>
+                        
+                        <div class="tab-content" id="recoveryPhraseTabContent">
+                            <!-- Generate Phrase Tab -->
+                            <div class="tab-pane fade show active" id="generate-phrase" role="tabpanel" aria-labelledby="generate-phrase-tab">
+                                <form id="generate-phrase-form">
+                                    <div class="mb-3">
+                                        <label class="form-label">Phrase Length</label>
+                                        <select class="form-select" id="phrase-length" name="phrase_length">
+                                            <option value="12">12 words</option>
+                                            <option value="24" selected>24 words</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <button type="button" class="btn btn-primary" id="generate-phrase-btn">Generate Recovery Phrase</button>
+                                </form>
+                                
+                                <div id="phrase-result" class="mt-4" style="display: none;">
+                                    <div class="alert alert-success">
+                                        <strong>Recovery phrase generated!</strong> Write it down and store it securely.
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label class="form-label">Recovery Phrase</label>
+                                        <div class="bg-light p-3 rounded mb-2">
+                                            <div id="mnemonic-words" class="row g-2">
+                                                <!-- Words will be added here -->
+                                            </div>
+                                        </div>
+                                        <div class="d-flex justify-content-between">
+                                            <button class="btn btn-sm btn-outline-primary" id="show-phrase-btn">
+                                                <i class="fas fa-eye"></i> Show
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-primary" id="copy-phrase-btn">
+                                                <i class="fas fa-copy"></i> Copy
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="alert alert-warning">
+                                        <i class="fas fa-exclamation-triangle me-2"></i>
+                                        <strong>Warning:</strong> This phrase will be hidden when you close this dialog. Write it down now and store it in a secure location.
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Recover Wallet Tab -->
+                            <div class="tab-pane fade" id="recover-wallet" role="tabpanel" aria-labelledby="recover-wallet-tab">
+                                <form id="recover-wallet-form">
+                                    <div class="mb-3">
+                                        <label class="form-label">Recovery Phrase</label>
+                                        <textarea class="form-control" id="recovery-phrase-input" name="recovery_phrase" rows="3" placeholder="Enter your 12 or 24 word recovery phrase" required></textarea>
+                                        <div class="form-text">Separate words with spaces</div>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label class="form-label">Derivation Path</label>
+                                        <input type="text" class="form-control" id="recovery-derivation-path" name="derivation_path" placeholder="m/44'/60'/0'/0/0" value="m/44'/60'/0'/0/0">
+                                        <div class="form-text">Standard Ethereum path: m/44'/60'/0'/0/0</div>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label class="form-label">Chain</label>
+                                        <select class="form-select" id="recovery-chain" name="chain" required>
+                                            <option value="" selected disabled>Select chain...</option>
+                                            {% for chain in active_chains %}
+                                            <option value="{{ chain.name }}">{{ chain.name }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    
+                                    <button type="button" class="btn btn-primary" id="recover-wallet-btn">Recover Wallet</button>
+                                </form>
+                                
+                                <div id="recovery-result" class="mt-4" style="display: none;">
+                                    <div class="alert alert-success">
+                                        <strong>Wallet recovered successfully!</strong> The wallet has been added to your account.
+                                    </div>
+                                    
+                                    <div class="card">
+                                        <div class="card-body">
+                                            <h6>Recovered Wallet</h6>
+                                            <div class="mb-2">
+                                                <strong>Address:</strong>
+                                                <span id="recovered-address">0x...</span>
+                                            </div>
+                                            <div class="mb-2">
+                                                <strong>Chain:</strong>
+                                                <span id="recovered-chain">Chain</span>
+                                            </div>
+                                            <div class="mb-2">
+                                                <strong>Private Key:</strong>
+                                                <div class="input-group">
+                                                    <input type="password" class="form-control" id="recovered-private-key" readonly>
+                                                    <button class="btn btn-outline-secondary toggle-password" type="button">
+                                                        <i class="fas fa-eye"></i>
+                                                    </button>
+                                                    <button class="btn btn-outline-primary" type="button" id="copy-recovered-key-btn">
+                                                        <i class="fas fa-copy"></i>
+                                                    </button>
+                                                </div>
+                                                <div class="form-text">This key will be hidden when you close this dialog</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Confirmation Modal -->
+<div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="confirmModalLabel">Confirm Action</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="confirm-modal-content">
+                Are you sure you want to proceed with this action?
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirm-action-btn">Confirm</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/wallet-security.js') }}"></script>
+{% endblock %}{% extends "base.html" %}
+
+{% block title %}Wallet Security - PME-X{% endblock %}
+
+{% block header %}Wallet Security{% endblock %}
+
+{% block content %}
+<!-- Security Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        The template appears to be complete as shown in the original code. It already contains:
+
+        1. All necessary security summary cards
+        2. Security tools section with buttons
+        3. Security status overview table
+        4. Security recommendations section
+        5. Recent audit activity table
+        6. All required modals (Key Management, Permissions, Hardware Wallet, Security Audit, Backup & Recovery)
+        7. Proper template inheritance from base.html
+        8. Required script includes
+
+        The selected placeholder code is correctly placed within the security summary cards section. The template is already functional and complete.
+
+        Is there a specific section you'd like to modify or enhance?
+    </div>

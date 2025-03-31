@@ -1,6 +1,21 @@
 # Ignore virtual environment directory
 venv/
-
+# Ignore Database files
+*.sqlite3
+# Ignore Jupyter Notebook checkpoints
+.ipynb_checkpoints
+# Ignore IDE specific files
+.idea/
+# Ignore Python bytecode files
+*.py[cod]
+# Ignore cache files
+*.cache
+__pycache__/
+# Ignore coverage reports
+coverage.xml    
+*.cover
+# Ignore test results
+*.xml
 # Ignore environment variables file
 .env
 

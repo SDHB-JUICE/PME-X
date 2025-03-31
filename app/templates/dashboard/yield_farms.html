@@ -1,0 +1,479 @@
+{% extends "base.html" %}
+
+{% block title %}Yield Farming - PME-X{% endblock %}
+
+{% block header %}Yield Farming{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- New Farm Configuration Card -->
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title">Start New Yield Farm</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('strategies.execute_yield_farm') }}">
+                    {{ csrf_token }}
+                    <div class="mb-3">
+                        <label for="chain" class="form-label">Chain</label>
+                        <select class="form-select" id="chain" name="chain" required>
+                            <option value="" selected disabled>Select a chain</option>
+                            {% for chain in chains %}
+                                {% if chain.status == 'active' %}
+                                <option value="{{ chain.name }}">{{ chain.name }}</option>
+                                {% endif %}
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">Select the blockchain for yield farming</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="protocol" class="form-label">Protocol</label>
+                        <select class="form-select" id="protocol" name="protocol" required>
+                            <option value="" selected disabled>Select protocol</option>
+                            <!-- Will be populated based on selected chain -->
+                        </select>
+                        <div class="form-text">Yield farming protocol to use</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="pool" class="form-label">Pool</label>
+                        <select class="form-select" id="pool" name="pool" required>
+                            <option value="" selected disabled>Select pool</option>
+                            <!-- Will be populated based on selected protocol -->
+                        </select>
+                        <div class="form-text">Specific pool to farm in</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="amount" class="form-label">Amount (USD)</label>
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            <input type="number" class="form-control" id="amount" name="amount" min="1" step="1" required>
+                        </div>
+                        <div class="form-text">Amount to deposit (in USD equivalent)</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Current APY</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="current_apy" readonly value="--">
+                            <span class="input-group-text">%</span>
+                        </div>
+                        <div class="form-text">Estimated annual percentage yield</div>
+                    </div>
+                    
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="auto_compound" name="auto_compound" checked>
+                        <label class="form-check-label" for="auto_compound">Auto-compound rewards</label>
+                    </div>
+                    
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="auto_harvest" name="auto_harvest" checked>
+                        <label class="form-check-label" for="auto_harvest">Schedule automatic harvesting</label>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-seedling me-2"></i> Start Yield Farm
+                    </button>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Best Opportunities Card -->
+        <div class="card mt-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">Best Yield Opportunities</h5>
+                <button class="btn btn-sm btn-outline-secondary" id="refreshYields">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Protocol</th>
+                                <th>Chain</th>
+                                <th>Pool</th>
+                                <th class="text-end">APY</th>
+                                <th class="text-center">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- These would be populated from the backend in a real implementation -->
+                            <tr>
+                                <td>Curve</td>
+                                <td>Ethereum</td>
+                                <td>3pool</td>
+                                <td class="text-end">6.7%</td>
+                                <td class="text-center">
+                                    <button class="btn btn-sm btn-outline-primary select-opportunity" 
+                                            data-chain="ethereum" 
+                                            data-protocol="curve" 
+                                            data-pool="3pool" 
+                                            data-apy="6.7">
+                                        Select
+                                    </button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Yearn</td>
+                                <td>Ethereum</td>
+                                <td>USDC</td>
+                                <td class="text-end">5.8%</td>
+                                <td class="text-center">
+                                    <button class="btn btn-sm btn-outline-primary select-opportunity" 
+                                            data-chain="ethereum" 
+                                            data-protocol="yearn" 
+                                            data-pool="usdc" 
+                                            data-apy="5.8">
+                                        Select
+                                    </button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Beefy</td>
+                                <td>Polygon</td>
+                                <td>USDC</td>
+                                <td class="text-end">9.4%</td>
+                                <td class="text-center">
+                                    <button class="btn btn-sm btn-outline-primary select-opportunity" 
+                                            data-chain="polygon" 
+                                            data-protocol="beefy" 
+                                            data-pool="usdc" 
+                                            data-apy="9.4">
+                                        Select
+                                    </button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Curve</td>
+                                <td>Polygon</td>
+                                <td>atricrypto</td>
+                                <td class="text-end">15.3%</td>
+                                <td class="text-center">
+                                    <button class="btn btn-sm btn-outline-primary select-opportunity" 
+                                            data-chain="polygon" 
+                                            data-protocol="curve" 
+                                            data-pool="atricrypto" 
+                                            data-apy="15.3">
+                                        Select
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Active Farms Card -->
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="card-title">Active Yield Farms</h5>
+            </div>
+            <div class="card-body">
+                {% if active_farms %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Protocol</th>
+                                <th>Pool</th>
+                                <th>Chain</th>
+                                <th class="text-end">Deposit</th>
+                                <th class="text-end">Current Value</th>
+                                <th class="text-center">APY</th>
+                                <th class="text-center">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for farm in active_farms %}
+                            <tr>
+                                <td>{{ farm.protocol }}</td>
+                                <td>{{ farm.pool_name }}</td>
+                                <td>{{ farm.chain }}</td>
+                                <td class="text-end">${{ farm.deposit_amount | round(2) }}</td>
+                                <td class="text-end">${{ farm.current_value | round(2) }}</td>
+                                <td class="text-center">{{ farm.apy | round(2) }}%</td>
+                                <td class="text-center">
+                                    <button class="btn btn-sm btn-success harvest-btn" data-id="{{ farm.id }}">
+                                        <i class="fas fa-leaf"></i> Harvest
+                                    </button>
+                                    <button class="btn btn-sm btn-danger withdraw-btn" data-id="{{ farm.id }}">
+                                        <i class="fas fa-sign-out-alt"></i> Withdraw
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-info mb-0">
+                    No active yield farms. Start a new one using the form.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Yield Farm Performance -->
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title">Yield Farming Explained</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-7">
+                        <h6>How Yield Farming Works</h6>
+                        <p>Yield farming is a process that allows cryptocurrency holders to earn passive income by providing liquidity to DeFi protocols. The process typically involves:</p>
+                        
+                        <ol>
+                            <li><strong>Deposit:</strong> Provide your tokens to a liquidity pool or vault</li>
+                            <li><strong>Earn:</strong> Receive rewards in the form of trading fees, interest, or governance tokens</li>
+                            <li><strong>Compound:</strong> Reinvest your rewards to maximize returns</li>
+                            <li><strong>Harvest:</strong> Claim your rewards periodically</li>
+                            <li><strong>Withdraw:</strong> Remove your funds when desired</li>
+                        </ol>
+                        
+                        <div class="alert alert-info mt-3">
+                            <i class="fas fa-info-circle me-2"></i> PME-X automates the entire process, including finding the best opportunities, compounding rewards, and optimizing harvesting schedules.
+                        </div>
+                    </div>
+                    <div class="col-md-5">
+                        <h6>Risk Management</h6>
+                        <ul>
+                            <li><strong>Smart Contract Risk:</strong> PME-X only integrates with well-audited protocols</li>
+                            <li><strong>Impermanent Loss:</strong> For LP positions, the system monitors and minimizes impermanent loss</li>
+                            <li><strong>Gas Optimization:</strong> Harvest operations are scheduled when gas prices are low</li>
+                            <li><strong>APY Tracking:</strong> Automatically moves funds if better opportunities arise</li>
+                        </ul>
+                        
+                        <div class="alert alert-warning mt-3">
+                            <i class="fas fa-exclamation-triangle me-2"></i> All DeFi activities involve risk. Only deposit funds you can afford to lose, and understand the protocols you're providing liquidity to.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const chainSelect = document.getElementById('chain');
+        const protocolSelect = document.getElementById('protocol');
+        const poolSelect = document.getElementById('pool');
+        const currentApyDisplay = document.getElementById('current_apy');
+        
+        // Protocol options by chain
+        const protocolsByChain = {
+            'ethereum': ['yearn', 'curve', 'aave', 'compound'],
+            'polygon': ['beefy', 'curve', 'aave'],
+            'bsc': ['beefy', 'venus', 'pancakeswap'],
+            'avalanche': ['beefy', 'aave', 'curve'],
+            'arbitrum-one': ['curve', 'balancer'],
+            'optimism': ['curve', 'velodrome']
+        };
+        
+        // Pool options by protocol
+        const poolsByProtocol = {
+            'yearn': ['usdc', 'dai', 'eth'],
+            'curve': ['3pool', 'steth', 'frax', 'atricrypto', 'aave'],
+            'aave': ['usdc', 'dai', 'eth'],
+            'compound': ['usdc', 'dai', 'eth'],
+            'beefy': ['usdc', 'matic', 'bnb'],
+            'venus': ['usdc', 'busd', 'bnb'],
+            'pancakeswap': ['cake-bnb', 'busd-bnb', 'eth-bnb'],
+            'balancer': ['wsteth-eth', 'usdc-weth'],
+            'velodrome': ['usdc-eth', 'dai-eth']
+        };
+        
+        // APY data (mock)
+        const apyData = {
+            'yearn-usdc': 5.8,
+            'yearn-dai': 4.9,
+            'yearn-eth': 3.2,
+            'curve-3pool': 6.7,
+            'curve-steth': 8.2,
+            'curve-frax': 11.5,
+            'curve-atricrypto': 15.3,
+            'curve-aave': 5.2,
+            'beefy-usdc': 9.4,
+            'beefy-matic': 12.8
+            // Additional APY data would be here
+        };
+        
+        // Update protocols when chain changes
+        chainSelect.addEventListener('change', function() {
+            const chain = this.value;
+            const protocols = protocolsByChain[chain] || [];
+            
+            // Clear previous options
+            protocolSelect.innerHTML = '<option value="" selected disabled>Select protocol</option>';
+            poolSelect.innerHTML = '<option value="" selected disabled>Select pool</option>';
+            currentApyDisplay.value = '--';
+            
+            // Add new options
+            protocols.forEach(protocol => {
+                const option = document.createElement('option');
+                option.value = protocol;
+                option.textContent = protocol.charAt(0).toUpperCase() + protocol.slice(1);
+                protocolSelect.appendChild(option);
+            });
+        });
+        
+        // Update pools when protocol changes
+        protocolSelect.addEventListener('change', function() {
+            const protocol = this.value;
+            const pools = poolsByProtocol[protocol] || [];
+            
+            // Clear previous options
+            poolSelect.innerHTML = '<option value="" selected disabled>Select pool</option>';
+            currentApyDisplay.value = '--';
+            
+            // Add new options
+            pools.forEach(pool => {
+                const option = document.createElement('option');
+                option.value = pool;
+                option.textContent = pool.toUpperCase();
+                poolSelect.appendChild(option);
+            });
+        });
+        
+        // Update APY when pool changes
+        poolSelect.addEventListener('change', function() {
+            const protocol = protocolSelect.value;
+            const pool = this.value;
+            const apyKey = `${protocol}-${pool}`;
+            
+            currentApyDisplay.value = apyData[apyKey] ? apyData[apyKey].toFixed(1) : '--';
+        });
+        
+        // Opportunity select buttons
+        document.querySelectorAll('.select-opportunity').forEach(button => {
+            button.addEventListener('click', function() {
+                const chain = this.getAttribute('data-chain');
+                const protocol = this.getAttribute('data-protocol');
+                const pool = this.getAttribute('data-pool');
+                const apy = this.getAttribute('data-apy');
+                
+                // Set form values
+                chainSelect.value = chain;
+                
+                // Trigger chain change event to populate protocols
+                const changeEvent = new Event('change');
+                chainSelect.dispatchEvent(changeEvent);
+                
+                // Set protocol after protocols are populated
+                setTimeout(() => {
+                    protocolSelect.value = protocol;
+                    
+                    // Trigger protocol change event to populate pools
+                    protocolSelect.dispatchEvent(changeEvent);
+                    
+                    // Set pool after pools are populated
+                    setTimeout(() => {
+                        poolSelect.value = pool;
+                        
+                        // Trigger pool change event to update APY
+                        poolSelect.dispatchEvent(changeEvent);
+                        
+                        // Scroll to form
+                        document.querySelector('.card').scrollIntoView({ behavior: 'smooth' });
+                    }, 100);
+                }, 100);
+            });
+        });
+        
+        // Harvest button
+        document.querySelectorAll('.harvest-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const farmId = this.getAttribute('data-id');
+                
+                // Make AJAX request to harvest farm
+                fetch(`/strategies/harvest_rewards?farm_id=${farmId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() if csrf_token else "" }}'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        window.location.reload();
+                    } else {
+                        alert('Error: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while harvesting rewards.');
+                });
+            });
+        });
+        
+        // Withdraw button
+        document.querySelectorAll('.withdraw-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                if (confirm('Are you sure you want to withdraw from this farm?')) {
+                    const farmId = this.getAttribute('data-id');
+                    
+                    // Make AJAX request to withdraw farm
+                    fetch(`/strategies/harvest_rewards?farm_id=${farmId}&withdraw=true`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': '{{ csrf_token() if csrf_token else "" }}'
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            window.location.reload();
+                        } else {
+                            alert('Error: ' + data.error);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('An error occurred while withdrawing from farm.');
+                    });
+                }
+            });
+        });
+        
+        // Form validation
+        const form = document.querySelector('form');
+        form.addEventListener('submit', function(event) {
+            const chain = chainSelect.value;
+            const protocol = protocolSelect.value;
+            const pool = poolSelect.value;
+            const amount = parseFloat(document.getElementById('amount').value);
+            
+            if (!chain || !protocol || !pool) {
+                event.preventDefault();
+                alert('Please select chain, protocol, and pool');
+                return;
+            }
+            
+            if (isNaN(amount) || amount <= 0) {
+                event.preventDefault();
+                alert('Please enter a valid amount');
+                return;
+            }
+        });
+    });
+</script>
+{% endblock %}

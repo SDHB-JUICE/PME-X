@@ -1,0 +1,740 @@
+{% extends "base.html" %}
+
+{% block title %}Transaction History - PME-X{% endblock %}
+
+{% block header %}Transaction History{% endblock %}
+
+{% block content %}
+<!-- Transaction Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <span class="badge bg-success" id="tx-status">Confirmed</span>
+                        <span class="badge bg-primary" id="tx-type">Send</span>
+                    </div>
+            </div>
+            <div class="modal-footer">
+                <a href="#" id="tx-explorer-link" target="_blank" class="btn btn-info">
+                    <i class="fas fa-external-link-alt me-1"></i> View on Explorer
+                </a>
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Gas Analytics Modal -->
+<div class="modal fade" id="gasAnalyticsModalFull" tabindex="-1" aria-labelledby="gasAnalyticsModalFullLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="gasAnalyticsModalFullLabel">Gas Usage Analytics</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-3">
+                    <div class="col-md-8">
+                        <h6 class="mb-0">Select Wallet</h6>
+                        <select class="form-select" id="gas-analytics-wallet-select">
+                            <option value="" selected disabled>Choose a wallet...</option>
+                            {% for wallet in wallets %}
+                            <option value="{{ wallet.id }}">{{ wallet.address[:10] }}... ({{ wallet.chain }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <h6 class="mb-0">Period</h6>
+                        <div class="btn-group w-100">
+                            <button type="button" class="btn btn-outline-primary gas-period active" data-period="30d">30d</button>
+                            <button type="button" class="btn btn-outline-primary gas-period" data-period="7d">7d</button>
+                            <button type="button" class="btn btn-outline-primary gas-period" data-period="24h">24h</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="gas-analytics-loading" class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Loading gas analytics...</p>
+                </div>
+                
+                <div id="gas-analytics-content" style="display: none;">
+                    <!-- Content will be loaded dynamically -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Transaction Patterns Modal -->
+<div class="modal fade" id="transactionPatternsModalFull" tabindex="-1" aria-labelledby="transactionPatternsModalFullLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="transactionPatternsModalFullLabel">Transaction Pattern Analysis</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-3">
+                    <div class="col-md-8">
+                        <h6 class="mb-0">Select Wallet</h6>
+                        <select class="form-select" id="patterns-wallet-select">
+                            <option value="" selected disabled>Choose a wallet...</option>
+                            {% for wallet in wallets %}
+                            <option value="{{ wallet.id }}">{{ wallet.address[:10] }}... ({{ wallet.chain }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <h6 class="mb-0">Period</h6>
+                        <div class="btn-group w-100">
+                            <button type="button" class="btn btn-outline-primary pattern-period active" data-period="all">All</button>
+                            <button type="button" class="btn btn-outline-primary pattern-period" data-period="30d">30d</button>
+                            <button type="button" class="btn btn-outline-primary pattern-period" data-period="7d">7d</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="patterns-loading" class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Loading transaction patterns...</p>
+                </div>
+                
+                <div id="patterns-content" style="display: none;">
+                    <!-- Content will be loaded dynamically -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Export Options Modal -->
+<div class="modal fade" id="exportOptionsModal" tabindex="-1" aria-labelledby="exportOptionsModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="exportOptionsModalLabel">Export Options</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="export-options-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token else '' }}">
+                    <input type="hidden" id="export-format" name="format" value="csv">
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Wallet</label>
+                        <select class="form-select" id="export-wallet-id" name="wallet_id" required>
+                            <option value="" selected disabled>Choose a wallet...</option>
+                            {% for wallet in wallets %}
+                            <option value="{{ wallet.id }}">{{ wallet.address[:10] }}... ({{ wallet.chain }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Token (Optional)</label>
+                        <select class="form-select" id="export-token-id" name="token_id">
+                            <option value="">All Tokens</option>
+                            <option value="native">Native Currency</option>
+                            <!-- Tokens will be loaded dynamically based on selected wallet -->
+                        </select>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Start Date</label>
+                                <input type="date" class="form-control" id="export-start-date" name="start_date">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">End Date</label>
+                                <input type="date" class="form-control" id="export-end-date" name="end_date">
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="confirm-export-btn">Export</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
+<script src="{{ url_for('static', filename='js/transaction-history.js') }}"></script>
+{% endblock %}
+                    <div>
+                        <span class="text-muted" id="tx-date">2023-01-01 12:00:00</span>
+                    </div>
+                </div>
+                
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6>Transaction Hash</h6>
+                                <p id="tx-hash" class="text-break">0x...</p>
+                                
+                                <h6>Block</h6>
+                                <p id="tx-block">0</p>
+                                
+                                <h6>From</h6>
+                                <p id="tx-from" class="text-break">0x...</p>
+                                
+                                <h6>To</h6>
+                                <p id="tx-to" class="text-break">0x...</p>
+                            </div>
+                            <div class="col-md-6">
+                                <h6>Token</h6>
+                                <p id="tx-token">Token (SYMBOL)</p>
+                                
+                                <h6>Amount</h6>
+                                <p id="tx-amount">0.00</p>
+                                
+                                <h6>USD Value</h6>
+                                <p id="tx-usd-value">$0.00</p>
+                                
+                                <h6>Chain</h6>
+                                <p id="tx-chain">Ethereum</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h6 class="mb-0">Gas & Fee Details</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-2">
+                                    <small class="text-muted">Gas Used:</small>
+                                    <span id="tx-gas-used" class="float-end">0</span>
+                                </div>
+                                <div class="mb-2">
+                                    <small class="text-muted">Gas Price:</small>
+                                    <span id="tx-gas-price" class="float-end">0 Gwei</span>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-2">
+                                    <small class="text-muted">Gas Cost:</small>
+                                    <span id="tx-gas-cost" class="float-end">0 ETH</span>
+                                </div>
+                                <div class="mb-2">
+                                    <small class="text-muted">USD Cost:</small>
+                                    <span id="tx-gas-cost-usd" class="float-end">$0.00</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Error details for failed transactions -->
+                <div id="error-details-card" class="card mb-3" style="display: none;">
+                    <div class="card-header bg-danger text-white">
+                        <h6 class="mb-0">Error Details</h6>
+                    </div>
+                    <div class="card-body">
+                        <p id="tx-error-message">Transaction failed.</p>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0">Additional Information</h6>
+                    </div>
+                    <div class="card-body">
+                        <pre id="tx-additional-info" class="bg-light p-3 rounded">No additional information available.</pre>
+                    </div>
+                </div> justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Total Transactions</h6>
+                        <h3 class="mb-0">{{ total_transactions }}</h3>
+                    </div>
+                    <i class="fas fa-exchange-alt fa-2x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-success text-white h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Total Received</h6>
+                        <h3 class="mb-0">${{ total_received|round(2) }}</h3>
+                    </div>
+                    <i class="fas fa-arrow-down fa-2x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-danger text-white h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Total Sent</h6>
+                        <h3 class="mb-0">${{ total_sent|round(2) }}</h3>
+                    </div>
+                    <i class="fas fa-arrow-up fa-2x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-warning text-white h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Gas Spent</h6>
+                        <h3 class="mb-0">${{ total_gas_spent|round(2) }}</h3>
+                    </div>
+                    <i class="fas fa-gas-pump fa-2x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Transaction Filters -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <button class="btn btn-primary me-2" id="syncTransactionsBtn">
+                            <i class="fas fa-sync-alt me-2"></i> Sync Transactions
+                        </button>
+                        <div class="btn-group me-2">
+                            <button class="btn btn-success" id="exportCsvBtn">
+                                <i class="fas fa-file-csv me-2"></i> Export CSV
+                            </button>
+                            <button class="btn btn-danger" id="exportPdfBtn">
+                                <i class="fas fa-file-pdf me-2"></i> Export PDF
+                            </button>
+                        </div>
+                        <button class="btn btn-info me-2" id="gasAnalyticsBtn">
+                            <i class="fas fa-chart-line me-2"></i> Gas Analytics
+                        </button>
+                        <button class="btn btn-secondary" id="transactionPatternsBtn">
+                            <i class="fas fa-chart-pie me-2"></i> Transaction Patterns
+                        </button>
+                    </div>
+                    <div class="d-flex">
+                        <div class="input-group me-2">
+                            <span class="input-group-text">Wallet</span>
+                            <select class="form-select" id="walletFilter">
+                                <option value="all">All Wallets</option>
+                                {% for wallet in wallets %}
+                                <option value="{{ wallet.id }}">{{ wallet.address[:10] }}... ({{ wallet.chain }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="input-group me-2">
+                            <span class="input-group-text">Token</span>
+                            <select class="form-select" id="tokenFilter">
+                                <option value="all">All Tokens</option>
+                                <option value="native">Native Only</option>
+                                <!-- Tokens will be loaded dynamically -->
+                            </select>
+                        </div>
+                        <div class="input-group me-2">
+                            <span class="input-group-text">Type</span>
+                            <select class="form-select" id="typeFilter">
+                                <option value="all">All Types</option>
+                                <option value="send">Send</option>
+                                <option value="receive">Receive</option>
+                                <option value="contract_creation">Contract Creation</option>
+                                <option value="unknown">Unknown</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-3">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="input-group">
+                                <span class="input-group-text">Start Date</span>
+                                <input type="date" class="form-control" id="startDateFilter">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="input-group">
+                                <span class="input-group-text">End Date</span>
+                                <input type="date" class="form-control" id="endDateFilter">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="input-group">
+                                <input type="text" class="form-control" placeholder="Search by hash, address..." id="searchFilter">
+                                <button class="btn btn-outline-secondary" type="button" id="applyFiltersBtn">
+                                    <i class="fas fa-filter"></i> Apply Filters
+                                </button>
+                                <button class="btn btn-outline-danger" type="button" id="resetFiltersBtn">
+                                    <i class="fas fa-times"></i> Reset
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Transaction Summary Charts -->
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Daily Transaction Volume</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="transactionVolumeChart" height="250"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Transaction Types</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="transactionTypesChart" height="250"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Most Active Tokens -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Most Active Tokens</h5>
+            </div>
+            <div class="card-body">
+                <div class="row" id="activeTokensContainer">
+                    {% for token in most_active_tokens %}
+                    <div class="col-md-3 mb-3">
+                        <div class="card">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <div class="d-flex align-items-center">
+                                        <img src="{{ token.logo_url or url_for('static', filename='img/tokens/default.jpeg') }}" 
+                                             onerror="this.src='{{ url_for('static', filename='img/tokens/default.jpeg') }}';"
+                                             alt="{{ token.symbol }}" class="me-2" width="24" height="24" />
+                                        <h6 class="mb-0">{{ token.symbol }}</h6>
+                                    </div>
+                                    <span class="badge bg-primary">{{ token.transaction_count }} tx</span>
+                                </div>
+                                <div class="d-flex justify-content-between">
+                                    <small class="text-muted">Volume:</small>
+                                    <strong>${{ token.total_volume|round(2) }}</strong>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="col-12 text-center py-3">
+                        <p class="text-muted">No transaction data available</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Transaction List -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Transaction List</h5>
+        <div class="btn-group">
+            <button class="btn btn-sm btn-outline-primary" id="refreshTransactionsBtn">
+                <i class="fas fa-sync-alt"></i> Refresh
+            </button>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover" id="transactionsTable">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Type</th>
+                        <th>Token</th>
+                        <th>Amount</th>
+                        <th>USD Value</th>
+                        <th>From</th>
+                        <th>To</th>
+                        <th>Gas Cost</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="transactionsTableBody">
+                    {% for tx in transactions %}
+                    <tr class="transaction-item" data-tx-hash="{{ tx.tx_hash }}">
+                        <td>{{ tx.timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td>
+                            <span class="badge {% if tx.tx_type == 'receive' %}bg-success{% elif tx.tx_type == 'send' %}bg-danger{% else %}bg-secondary{% endif %}">
+                                {{ tx.tx_type|capitalize }}
+                            </span>
+                        </td>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <img src="{{ tx.token_logo_url or url_for('static', filename='img/tokens/default.jpeg') }}" 
+                                     onerror="this.src='{{ url_for('static', filename='img/tokens/default.jpeg') }}';"
+                                     alt="{{ tx.token_symbol or 'Native' }}" class="me-2" width="20" height="20" />
+                                {{ tx.token_symbol or chain_info[tx.chain].currency_symbol }}
+                            </div>
+                        </td>
+                        <td>{{ tx.amount|round(6) }}</td>
+                        <td>${{ tx.usd_value|round(2) }}</td>
+                        <td class="text-truncate" style="max-width: 100px;">{{ tx.from_address }}</td>
+                        <td class="text-truncate" style="max-width: 100px;">{{ tx.to_address }}</td>
+                        <td>
+                            {% if tx.gas_cost_eth %}
+                            <span title="${{ tx.gas_cost_usd|round(2) }}">{{ tx.gas_cost_eth|round(6) }}</span>
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge {% if tx.status == 'confirmed' %}bg-success{% elif tx.status == 'pending' %}bg-warning{% else %}bg-danger{% endif %}">
+                                {{ tx.status|capitalize }}
+                            </span>
+                        </td>
+                        <td>
+                            <div class="btn-group">
+                                <button class="btn btn-sm btn-outline-primary view-tx-details-btn" data-tx-hash="{{ tx.tx_hash }}">
+                                    <i class="fas fa-info-circle"></i>
+                                </button>
+                                <a href="{{ chain_info[tx.chain].explorer_url }}/tx/{{ tx.tx_hash }}" 
+                                   target="_blank" class="btn btn-sm btn-outline-info">
+                                    <i class="fas fa-external-link-alt"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="10" class="text-center py-4">
+                            <i class="fas fa-exchange-alt fa-2x text-muted mb-3"></i>
+                            <h5>No transactions found</h5>
+                            <p class="text-muted">Use the Sync Transactions button to fetch your transaction history</p>
+                            <button class="btn btn-primary mt-2" id="emptySyncTransactionsBtn">
+                                <i class="fas fa-sync-alt me-2"></i> Sync Transactions
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Pagination -->
+        <nav aria-label="Transaction navigation">
+            <ul class="pagination justify-content-center" id="transactionPagination">
+                {% if pagination.pages > 1 %}
+                <li class="page-item {% if pagination.page == 1 %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('dashboard.transactions', page=pagination.page-1) }}" aria-label="Previous">
+                        <span aria-hidden="true">&laquo;</span>
+                    </a>
+                </li>
+                {% for i in range(1, pagination.pages + 1) %}
+                <li class="page-item {% if pagination.page == i %}active{% endif %}">
+                    <a class="page-link" href="{{ url_for('dashboard.transactions', page=i) }}">{{ i }}</a>
+                </li>
+                {% endfor %}
+                <li class="page-item {% if pagination.page == pagination.pages %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('dashboard.transactions', page=pagination.page+1) }}" aria-label="Next">
+                        <span aria-hidden="true">&raquo;</span>
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+    </div>
+</div>
+
+<!-- Sync Transactions Modal -->
+<div class="modal fade" id="syncTransactionsModal" tabindex="-1" aria-labelledby="syncTransactionsModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="syncTransactionsModalLabel">Sync Transactions</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="sync-transactions-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token else '' }}">
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Wallet</label>
+                        <select class="form-select" id="sync-wallet-id" name="wallet_id" required>
+                            <option value="" selected disabled>Choose a wallet...</option>
+                            {% for wallet in wallets %}
+                            <option value="{{ wallet.id }}">{{ wallet.address[:10] }}... ({{ wallet.chain }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Token (Optional)</label>
+                        <select class="form-select" id="sync-token-id" name="token_id">
+                            <option value="">All Tokens</option>
+                            <option value="native">Native Currency</option>
+                            <!-- Tokens will be loaded dynamically based on selected wallet -->
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Starting Block (Optional)</label>
+                        <input type="number" class="form-control" id="sync-start-block" name="start_block" placeholder="Leave empty to start from last synced block">
+                        <div class="form-text">Lower values sync more history but take longer</div>
+                    </div>
+                </form>
+                
+                <div id="sync-progress" style="display: none;">
+                    <div class="progress mb-3">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+                    </div>
+                    <p id="sync-status">Initializing sync...</p>
+                </div>
+                
+                <div id="sync-results" style="display: none;">
+                    <div class="alert alert-success">
+                        <h6>Sync Results:</h6>
+                        <ul>
+                            <li>Transactions found: <span id="transactions-found">0</span></li>
+                            <li>Transactions added: <span id="transactions-added">0</span></li>
+                            <li>Blocks scanned: <span id="blocks-scanned">0</span></li>
+                            <li>Errors: <span id="sync-errors">0</span></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="start-sync-btn">Start Sync</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Transaction Details Modal -->
+<div class="modal fade" id="transactionDetailsModal" tabindex="-1" aria-labelledby="transactionDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="transactionDetailsModalLabel">Transaction Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <span class="badge bg-success" id="tx-status">Confirmed</span>
+                        <span class="badge bg-primary" id="tx-type">Send</span>
+                    </div>
+                    <div>
+                        <span class="text-muted" id="tx-date">2023-01-01 12:00:00</span>
+                    </div>
+                </div>
+                
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <h6 class="mb-0">Transaction Hash</h6>
+                        <p id="modal-tx-hash" class="text-break">0x...</p>
+                    </div>
+                    <button type="button" class="btn btn-outline-secondary" id="copyTxHashBtn">
+                        <i class="fas fa-copy"></i> Copy Hash
+                    </button>
+                </div>
+
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6>Block</h6>
+                                <p id="modal-tx-block">0</p>
+                                
+                                <h6>From</h6>
+                                <p id="modal-tx-from" class="text-break">0x...</p>
+                                
+                                <h6>To</h6>
+                                <p id="modal-tx-to" class="text-break">0x...</p>
+                            </div>
+                            <div class="col-md-6">
+                                <h6>Token</h6>
+                                <p id="modal-tx-token">Token (SYMBOL)</p>
+                                
+                                <h6>Amount</h6>
+                                <p id="modal-tx-amount">0.00</p>
+                                
+                                <h6>USD Value</h6>
+                                <p id="modal-tx-usd-value">$0.00</p>
+                                
+                                <h6>Chain</h6>
+                                <p id="modal-tx-chain">Ethereum</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Error details for failed transactions -->
+                <div id="modal-error-details-card" class="card mb-3" style="display: none;">
+                    <div class="card-header bg-danger text-white">
+                        <h6 class="mb-0">Error Details</h6>
+                    </div>
+                    <div class="card-body">
+                        <p id="modal-tx-error-message">Transaction failed.</p>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0">Additional Information</h6>
+                    </div>
+                    <div class="card-body"></div>
+                        <pre id="modal-tx-additional-info" class="bg-light p-3 rounded">No additional information available.</pre>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <a href="#" id="modal-tx-explorer-link" target="_blank" class="btn btn-info">
+                    <i class="fas fa-external-link-alt me-1"></i> View on Explorer
+                </a>
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Close</button>
+            </div>
+            </div>
+            </div>
+        </div>
+        {% endblock content %}

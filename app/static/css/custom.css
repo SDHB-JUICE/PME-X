@@ -346,3 +346,8 @@ canvas {
 ::-webkit-scrollbar-thumb:hover {
     background: #a8a8a8;
 }
+
+.edit-wallet-btn:hover {
+    color: #0d6efd;
+    background-color: rgba(13, 110, 253, 0.1);
+}

@@ -1,0 +1,93 @@
+/* Wallet Strategies Styles */
+
+/* Wallet Selection Grid */
+.wallet-selection-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+}
+
+.wallet-selection-item .card {
+    transition: all 0.2s ease;
+}
+
+.wallet-selection-item .card:hover {
+    border-color: #0d6efd;
+    box-shadow: 0 0.125rem 0.25rem rgba(13, 110, 253, 0.15);
+}
+
+.wallet-selection-item .form-check-input:checked + .form-check-label {
+    font-weight: 500;
+}
+
+/* Log Entries */
+.log-entry {
+    font-family: 'Courier New', monospace;
+    font-size: 0.875rem;
+}
+
+.log-time {
+    color: #6c757d;
+    margin-right: 8px;
+}
+
+.log-info .log-message {
+    color: #0d6efd;
+}
+
+.log-error .log-message {
+    color: #dc3545;
+}
+
+.log-warning .log-message {
+    color: #ffc107;
+}
+
+/* Strategy Parameters */
+.strategy-params {
+    border-left: 3px solid #0d6efd;
+}
+
+.strategy-params h6 {
+    color: #0d6efd;
+}
+
+/* Strategy Results */
+.strategy-result {
+    display: flex;
+    align-items: center;
+}
+
+.strategy-result .badge {
+    min-width: 100px;
+    text-align: center;
+}
+
+/* Custom Switch Override */
+.form-switch .form-check-input {
+    height: 1.25rem;
+    width: 2.5rem;
+}
+
+/* Active/Inactive Toggle */
+.form-check-input:checked {
+    background-color: #198754;
+    border-color: #198754;
+}
+
+/* Animation for loading */
+@keyframes pulse {
+    0% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.6;
+    }
+    100% {
+        opacity: 1;
+    }
+}
+
+.executing {
+    animation: pulse 1.5s infinite;
+}

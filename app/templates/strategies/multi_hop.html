@@ -1,0 +1,280 @@
+{% extends "base.html" %}
+
+{% block title %}Multi-Hop Arbitrage - PME-X{% endblock %}
+
+{% block header %}Multi-Hop Arbitrage{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- Strategy Configuration Card -->
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title">Configure Multi-Hop Arbitrage</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('strategies.multi_hop_arbitrage') }}">
+                    {{ csrf_token }}
+                    <div class="mb-3">
+                        <label for="chain" class="form-label">Chain</label>
+                        <select class="form-select" id="chain" name="chain" required>
+                            <option value="" selected disabled>Select a chain</option>
+                            {% for chain in chains %}
+                                {% if chain.status == 'active' %}
+                                <option value="{{ chain.name }}">{{ chain.name }}</option>
+                                {% endif %}
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">Select the blockchain to execute arbitrage on</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="amount" class="form-label">Amount (USD)</label>
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            <input type="number" class="form-control" id="amount" name="amount" min="1" step="1" required>
+                        </div>
+                        <div class="form-text">Amount to use for arbitrage (in USD equivalent)</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="max_hops" class="form-label">Maximum Hops</label>
+                        <select class="form-select" id="max_hops" name="max_hops">
+                            <option value="2">2 Hops</option>
+                            <option value="3" selected>3 Hops</option>
+                            <option value="4">4 Hops</option>
+                            <option value="5">5 Hops</option>
+                        </select>
+                        <div class="form-text">Maximum number of exchanges to route through</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="min_profit" class="form-label">Minimum Profit (%)</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="min_profit" name="min_profit" min="0.1" step="0.1" value="0.5">
+                            <span class="input-group-text">%</span>
+                        </div>
+                        <div class="form-text">Minimum profit threshold to execute trade</div>
+                    </div>
+                    
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="auto_execute" name="auto_execute" checked>
+                        <label class="form-check-label" for="auto_execute">Auto-execute if profitable opportunity found</label>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-search me-2"></i> Find & Execute Arbitrage
+                    </button>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Strategy Information Card -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="card-title">How Multi-Hop Arbitrage Works</h5>
+            </div>
+            <div class="card-body">
+                <p>Multi-hop arbitrage takes advantage of price differences between multiple exchanges (DEXes) on the same blockchain:</p>
+                
+                <ol>
+                    <li>The system analyzes price differences across multiple DEXes</li>
+                    <li>It finds optimal trading paths through multiple hops (exchanges)</li>
+                    <li>Executes trades through these paths to capture price differences</li>
+                    <li>Routes can include multiple tokens (e.g., ETH → USDC → DAI → ETH)</li>
+                </ol>
+                
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i> Multi-hop arbitrage can find complex routes that simple two-exchange arbitrage might miss, potentially yielding higher profits.
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Recent Trades Card -->
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">Recent Multi-Hop Trades</h5>
+                <a href="{{ url_for('dashboard.trade_logs') }}?strategy=multi_hop" class="btn btn-sm btn-outline-primary">View All</a>
+            </div>
+            <div class="card-body">
+                {% if recent_trades %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Chain</th>
+                                <th>Path</th>
+                                <th class="text-end">Amount</th>
+                                <th class="text-end">Profit</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for trade in recent_trades %}
+                            <tr>
+                                <td>{{ trade.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                <td>{{ trade.chain }}</td>
+                                <td>
+                                    {% if trade.details and trade.details.path %}
+                                        {{ ' → '.join(trade.details.path) }}
+                                    {% else %}
+                                        Multi-hop path
+                                    {% endif %}
+                                </td>
+                                <td class="text-end">${{ trade.amount | round(2) }}</td>
+                                <td class="text-end">
+                                    {% if trade.net_profit > 0 %}
+                                    <span class="text-success">${{ trade.net_profit | round(2) }}</span>
+                                    {% else %}
+                                    <span class="text-danger">${{ trade.net_profit | round(2) }}</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-info mb-0">
+                    No multi-hop arbitrage trades executed yet.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Trade Path Visualization -->
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title">Trade Path Visualization</h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-light text-center">
+                    <i class="fas fa-info-circle me-2"></i> Execute a trade to see the path visualization here.
+                </div>
+                
+                <div id="pathVisualization" class="d-none">
+                    <!-- This will be populated with a visualization after trade execution -->
+                    <div class="trade-path text-center py-4">
+                        <div class="path-nodes d-flex justify-content-between align-items-center">
+                            <!-- Path nodes will be inserted here via JavaScript -->
+                        </div>
+                    </div>
+                    
+                    <div class="trade-details mt-4">
+                        <h6>Trade Details</h6>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <p><strong>Gas Cost:</strong> <span id="gasCost">0.00</span> USD</p>
+                            </div>
+                            <div class="col-md-4">
+                                <p><strong>Execution Time:</strong> <span id="executionTime">0.00</span> seconds</p>
+                            </div>
+                            <div class="col-md-4">
+                                <p><strong>ROI:</strong> <span id="roi">0.00</span>%</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Form validation
+        const form = document.querySelector('form');
+        form.addEventListener('submit', function(event) {
+            const chainSelect = document.getElementById('chain');
+            const amountInput = document.getElementById('amount');
+            
+            if (!chainSelect.value) {
+                event.preventDefault();
+                alert('Please select a blockchain');
+                return;
+            }
+            
+            const amount = parseFloat(amountInput.value);
+            if (isNaN(amount) || amount <= 0) {
+                event.preventDefault();
+                alert('Please enter a valid amount');
+                return;
+            }
+        });
+        
+        // Check for flash messages that indicate successful execution
+        // If found, show the path visualization
+        const flashMessages = document.querySelectorAll('.alert');
+        flashMessages.forEach(message => {
+            if (message.textContent.includes('executed successfully')) {
+                document.getElementById('pathVisualization').classList.remove('d-none');
+                
+                // Populate with example data (in a real app, this would come from the backend)
+                const pathNodes = document.querySelector('.path-nodes');
+                pathNodes.innerHTML = `
+                    <div class="node">
+                        <div class="exchange rounded-circle bg-primary text-white">
+                            <i class="fas fa-exchange-alt"></i>
+                        </div>
+                        <div class="name">Uniswap</div>
+                    </div>
+                    <div class="arrow">→</div>
+                    <div class="node">
+                        <div class="exchange rounded-circle bg-success text-white">
+                            <i class="fas fa-exchange-alt"></i>
+                        </div>
+                        <div class="name">Sushiswap</div>
+                    </div>
+                    <div class="arrow">→</div>
+                    <div class="node">
+                        <div class="exchange rounded-circle bg-info text-white">
+                            <i class="fas fa-exchange-alt"></i>
+                        </div>
+                        <div class="name">Curve</div>
+                    </div>
+                `;
+                
+                document.getElementById('gasCost').textContent = '12.45';
+                document.getElementById('executionTime').textContent = '3.2';
+                document.getElementById('roi').textContent = '0.8';
+            }
+        });
+    });
+</script>
+
+<style>
+    .path-nodes {
+        position: relative;
+        height: 100px;
+    }
+    
+    .node {
+        text-align: center;
+        width: 80px;
+    }
+    
+    .exchange {
+        width: 50px;
+        height: 50px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 10px;
+    }
+    
+    .arrow {
+        font-size: 24px;
+        color: #666;
+        display: flex;
+        align-items: center;
+    }
+</style>
+{% endblock %}

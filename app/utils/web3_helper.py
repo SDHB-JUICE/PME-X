@@ -53,32 +53,51 @@ def generate_wallet():
     return account.address, account.key.hex()
 
 def encrypt_private_key(private_key, password):
-    """Encrypt private key
+    """Encrypt a private key with a password"""
+    # Ensure private key is properly formatted
+    if private_key.startswith('0x'):
+        # Remove 0x prefix if present
+        private_key = private_key[2:]
     
-    Args:
-        private_key (str): Private key to encrypt
-        password (str): Password for encryption
-        
-    Returns:
-        str: Encrypted keystore JSON
-    """
-    account = Account.from_key(private_key)
-    encrypted = account.encrypt(password)
-    return json.dumps(encrypted)
-
-def decrypt_private_key(keystore_json, password):
-    """Decrypt private key
+    # Verify it's a valid hexadecimal string
+    try:
+        # Attempt to convert to bytes to validate
+        private_key_bytes = bytes.fromhex(private_key)
+        if len(private_key_bytes) != 32:
+            raise ValueError("Private key must be 32 bytes (64 hex characters)")
+    except ValueError:
+        raise ValueError("Invalid private key format: must be a hexadecimal string")
     
-    Args:
-        keystore_json (str): Encrypted keystore JSON
-        password (str): Password for decryption
-        
-    Returns:
-        str: Private key
-    """
-    keystore = json.loads(keystore_json)
-    private_key = Account.decrypt(keystore, password)
-    return private_key.hex()
+    # For demonstration, using a simple encryption
+    # In production, use a proper encryption library
+    from cryptography.fernet import Fernet
+    import base64
+    import hashlib
+    
+    # Create a key from password
+    key = hashlib.sha256(password.encode()).digest()
+    key_base64 = base64.urlsafe_b64encode(key)
+    
+    # Encrypt
+    cipher = Fernet(key_base64)
+    encrypted = cipher.encrypt(private_key.encode())
+    
+    return encrypted.decode()
+def decrypt_private_key(encrypted_key, password):
+    """Decrypt an encrypted private key with the password"""
+    from cryptography.fernet import Fernet
+    import base64
+    import hashlib
+    
+    # Create a key from password (must match encrypt_private_key)
+    key = hashlib.sha256(password.encode()).digest()
+    key_base64 = base64.urlsafe_b64encode(key)
+    
+    # Decrypt
+    cipher = Fernet(key_base64)
+    decrypted = cipher.decrypt(encrypted_key.encode())
+    
+    return decrypted.decode()
 
 def load_contract(web3, address, abi_path):
     """Load contract
